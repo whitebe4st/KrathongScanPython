@@ -1,0 +1,22 @@
+# Python dependencies for KrathongScanner project
+
+# Core dependencies
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+numpy>=1.24.0
+websockets>=11.0.0
+python-dotenv>=1.0.0
+asyncio-mqtt>=0.13.0
+
+# ArUco and Computer Vision
+aruco>=0.1.0
+imutils>=0.5.4
+
+# WebSocket and API
+fastapi>=0.104.0
+uvicorn[websockets]>=0.24.0
+websocket-client>=1.6.0
+
+# Utilities
+pydantic>=2.5.0
+python-multipart>=0.0.6
