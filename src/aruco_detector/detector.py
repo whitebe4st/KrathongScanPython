@@ -79,7 +79,7 @@ class ArUcoDetector:
             1,
             2,
             3,
-        ]  # Top-left, top-right, bottom-right, bottom-left
+        ]  # Top-left, top-right, bottom-left, bottom-right
 
         self.logger.info(f"ArUco Detector initialized with {dict_type} dictionary")
 
@@ -283,7 +283,7 @@ class ArUcoDetector:
             Homography matrix for perspective correction
         """
         try:
-            # Define the order: top-left, top-right, bottom-right, bottom-left
+            # Define the order: top-left, top-right, bottom-left, bottom-right
             marker_order = [0, 1, 2, 3]
 
             # Get corner points in the correct order
@@ -303,17 +303,23 @@ class ArUcoDetector:
 
             # Define destination points (rectangular output)
             # Calculate the size based on the detected markers
+            # For correct mapping: 0->(0,0), 1->(w,0), 2->(0,h), 3->(w,h)
             width = max(
-                np.linalg.norm(src_points[1] - src_points[0]),
-                np.linalg.norm(src_points[2] - src_points[3]),
+                np.linalg.norm(src_points[1] - src_points[0]),  # top edge
+                np.linalg.norm(src_points[3] - src_points[2]),  # bottom edge
             )
             height = max(
-                np.linalg.norm(src_points[3] - src_points[0]),
-                np.linalg.norm(src_points[2] - src_points[1]),
+                np.linalg.norm(src_points[2] - src_points[0]),  # left edge
+                np.linalg.norm(src_points[3] - src_points[1]),  # right edge
             )
 
+            # Map markers to rectangle corners:
+            # 0 (top-left) -> (0, 0)
+            # 1 (top-right) -> (width, 0)
+            # 2 (bottom-left) -> (0, height)
+            # 3 (bottom-right) -> (width, height)
             dst_points = np.array(
-                [[0, 0], [width, 0], [width, height], [0, height]], dtype=np.float32
+                [[0, 0], [width, 0], [0, height], [width, height]], dtype=np.float32
             )
 
             # Calculate homography matrix
@@ -340,13 +346,45 @@ class ArUcoDetector:
             Perspective-corrected image
         """
         try:
-            # Get the size from the homography matrix
+            # Calculate the size from the homography matrix
+            # Transform the corners of the original image to get the output size
             h, w = image.shape[:2]
+            corners = np.array(
+                [[0, 0], [w, 0], [w, h], [0, h]], dtype=np.float32
+            ).reshape(-1, 1, 2)
 
-            # Apply perspective transform
-            corrected = cv2.warpPerspective(image, homography, (int(w), int(h)))
+            # Transform the corners
+            transformed_corners = cv2.perspectiveTransform(corners, homography)
 
-            self.logger.info("Perspective correction applied")
+            # Find the bounding box of the transformed corners
+            min_x = int(np.floor(np.min(transformed_corners[:, :, 0])))
+            max_x = int(np.ceil(np.max(transformed_corners[:, :, 0])))
+            min_y = int(np.floor(np.min(transformed_corners[:, :, 1])))
+            max_y = int(np.ceil(np.max(transformed_corners[:, :, 1])))
+
+            # Calculate output size
+            output_width = max_x - min_x
+            output_height = max_y - min_y
+
+            # Create translation matrix to shift the result to positive coordinates
+            translation_matrix = np.array(
+                [[1, 0, -min_x], [0, 1, -min_y], [0, 0, 1]], dtype=np.float32
+            )
+
+            # Combine homography with translation
+            final_homography = translation_matrix @ homography
+
+            # Apply perspective transform with correct size using Lanczos interpolation for highest quality
+            corrected = cv2.warpPerspective(
+                image,
+                final_homography,
+                (output_width, output_height),
+                flags=cv2.INTER_LANCZOS4,
+            )
+
+            self.logger.info(
+                f"Perspective correction applied: {output_width}x{output_height}"
+            )
             return corrected
 
         except Exception as e:
@@ -356,6 +394,7 @@ class ArUcoDetector:
     def apply_template_mask(self, image: np.ndarray, mask_path: str) -> np.ndarray:
         """
         Apply template mask to extract only the drawing area with transparent background.
+        Uses reliable centered approach with proper scaling.
 
         Args:
             image: Input image
@@ -366,17 +405,16 @@ class ArUcoDetector:
         """
         try:
             # Load the mask
-            mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-            if mask is None:
+            mask_template = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+            if mask_template is None:
                 self.logger.error(f"Could not load mask from {mask_path}")
                 return image
 
-            # Resize mask to match image size
-            mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
+            # Resize mask to match image size (centered approach)
+            mask_resized = cv2.resize(mask_template, (image.shape[1], image.shape[0]))
 
             # Create a binary mask: treat gray pixels (above threshold) as white areas to extract
-            # Threshold: treat pixels with value > 128 as "white" areas to keep
-            _, binary_mask = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY)
+            _, binary_mask = cv2.threshold(mask_resized, 128, 255, cv2.THRESH_BINARY)
 
             # Convert image to BGRA (add alpha channel)
             if image.shape[2] == 3:
@@ -384,22 +422,18 @@ class ArUcoDetector:
             else:
                 bgra_image = image.copy()
 
-            # Create alpha channel from binary mask
-            # White areas in mask (255) = fully opaque (255)
-            # Black areas in mask (0) = fully transparent (0)
-            alpha_channel = binary_mask
-
-            # Apply the alpha channel
-            bgra_image[:, :, 3] = alpha_channel
+            # Apply the binary mask as alpha channel
+            bgra_image[:, :, 3] = binary_mask
 
             # Apply the binary mask to the BGR channels
-            # Keep original colors where mask is white, make black where mask is black
             masked_bgr = cv2.bitwise_and(
                 bgra_image[:, :, :3], bgra_image[:, :, :3], mask=binary_mask
             )
             bgra_image[:, :, :3] = masked_bgr
 
-            self.logger.info("Template mask applied with transparent background")
+            self.logger.info(
+                "Template mask applied with transparent background (centered approach)"
+            )
             return bgra_image
 
         except Exception as e:
@@ -486,7 +520,13 @@ class ArUcoDetector:
         except Exception as e:
             self.logger.error(f"Error saving debug images: {e}")
 
-    def process_image(self, image_path: str, mask_path: str, output_path: str) -> bool:
+    def process_image(
+        self,
+        image_path: str,
+        mask_path: str,
+        output_path: str,
+        use_homography: bool = False,
+    ) -> bool:
         """
         Complete image processing pipeline.
 
@@ -494,6 +534,7 @@ class ArUcoDetector:
             image_path: Path to input image
             mask_path: Path to template mask
             output_path: Path for output image
+            use_homography: Whether to use homography correction instead of simple cropping
 
         Returns:
             True if successful, False otherwise
@@ -519,17 +560,45 @@ class ArUcoDetector:
                 self.logger.error("Could not find all corner markers")
                 return False
 
-            # Step 3: Extract the area using simple cropping (no homography)
-            corrected = self._crop_marker_area(image, corner_markers)
-            self.logger.info("Used simple cropping (no homography)")
+            # Step 3: Extract the area using homography or simple cropping
+            if use_homography:
+                # Use homography for perspective correction
+                homography = self.create_perspective_transform(corner_markers)
+                if homography is None:
+                    self.logger.error("Could not create perspective transform")
+                    return False
 
-            # Step 5: Apply template mask
+                corrected = self.apply_perspective_correction(image, homography)
+                self.logger.info("Used homography perspective correction")
+
+                # Step 3.5: Detect markers again in straightened image and crop
+                straightened_markers = self.detect_markers(corrected)
+                straightened_corner_markers = self.get_corner_markers(
+                    straightened_markers
+                )
+                if straightened_corner_markers is None:
+                    self.logger.error(
+                        "Could not find corner markers in straightened image"
+                    )
+                    return False
+
+                # Use the new perspective cropping method
+                corrected = self._crop_perspective_corrected_area(
+                    corrected, straightened_corner_markers
+                )
+                self.logger.info("Used perspective-corrected cropping")
+            else:
+                # Use simple cropping (no homography)
+                corrected = self._crop_marker_area(image, corner_markers)
+                self.logger.info("Used simple cropping (no homography)")
+
+            # Step 4: Apply template mask
             masked = self.apply_template_mask(corrected, mask_path)
 
-            # Step 6: Crop to only the masked content area
+            # Step 5: Crop to only the masked content area
             final_result = self._crop_masked_area(masked)
 
-            # Step 7: Prepare metadata
+            # Step 6: Prepare metadata
             metadata = {
                 "input_image": image_path,
                 "mask_path": mask_path,
@@ -544,9 +613,12 @@ class ArUcoDetector:
                     "dict_type": self.dict_type,
                     "marker_size": self.marker_size,
                 },
+                "processing_method": "homography"
+                if use_homography
+                else "simple_cropping",
             }
 
-            # Step 8: Save result
+            # Step 7: Save result
             success = self.save_result(final_result, output_path, metadata)
 
             if success:
@@ -564,8 +636,8 @@ class ArUcoDetector:
         self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
     ) -> np.ndarray:
         """
-        Crop the area within the marker bounds without homography.
-        Extracts a rectangular area positioned at the marker tips.
+        Crop the area within the marker bounds using universal ratio-based method.
+        This method now uses the same ratio-based approach for both straight and warped images.
 
         Args:
             image: Input image
@@ -582,7 +654,7 @@ class ArUcoDetector:
                 1,
                 2,
                 3,
-            ]:  # Top-left, top-right, bottom-right, bottom-left
+            ]:  # Top-left, top-right, bottom-left, bottom-right
                 if marker_id in corner_markers:
                     center = corner_markers[marker_id].center
                     centers.append([center[0], center[1]])
@@ -599,20 +671,28 @@ class ArUcoDetector:
             marker_width = x_max - x_min
             marker_height = y_max - y_min
 
-            # Define the target crop size (779x457)
-            target_width = 779
-            target_height = 457
+            # Use ratio-based cropping for consistency with warped image processing
+            # Target ratios from analysis: ~1.149 (width) and ~1.225 (height)
+            target_ratio_w = 1.149
+            target_ratio_h = 1.225
 
-            # Calculate the offset to position the crop at the marker tips
-            # We want the crop to be centered within the marker area
-            offset_x = (marker_width - target_width) // 2
-            offset_y = (marker_height - target_height) // 2
+            # Calculate ideal crop size to match these ratios
+            ideal_crop_width = int(marker_width / target_ratio_w)
+            ideal_crop_height = int(marker_height / target_ratio_h)
+
+            # Use the ideal crop size for consistent scaling
+            adjusted_width = ideal_crop_width
+            adjusted_height = ideal_crop_height
+
+            # Calculate offset with the adjusted size
+            offset_x = (marker_width - adjusted_width) // 2
+            offset_y = (marker_height - adjusted_height) // 2
 
             # Calculate the crop coordinates
             crop_x_min = x_min + offset_x
             crop_y_min = y_min + offset_y
-            crop_x_max = crop_x_min + target_width
-            crop_y_max = crop_y_min + target_height
+            crop_x_max = crop_x_min + adjusted_width
+            crop_y_max = crop_y_min + adjusted_height
 
             # Ensure the crop is within image bounds
             img_height, img_width = image.shape[:2]
@@ -622,33 +702,155 @@ class ArUcoDetector:
             crop_y_max = min(img_height, crop_y_max)
 
             # Adjust if the crop would be outside bounds
-            if crop_x_max - crop_x_min < target_width:
+            actual_width = crop_x_max - crop_x_min
+            actual_height = crop_y_max - crop_y_min
+
+            if actual_width < adjusted_width:
                 # Adjust to fit within image width
                 if crop_x_min == 0:
-                    crop_x_max = min(img_width, target_width)
+                    crop_x_max = min(img_width, crop_x_min + adjusted_width)
                 else:
-                    crop_x_min = max(0, img_width - target_width)
+                    crop_x_min = max(0, crop_x_max - adjusted_width)
 
-            if crop_y_max - crop_y_min < target_height:
+            if actual_height < adjusted_height:
                 # Adjust to fit within image height
                 if crop_y_min == 0:
-                    crop_y_max = min(img_height, target_height)
+                    crop_y_max = min(img_height, crop_y_min + adjusted_height)
                 else:
-                    crop_y_min = max(0, img_height - target_height)
+                    crop_y_min = max(0, crop_y_max - adjusted_height)
 
             # Crop the image
             cropped = image[crop_y_min:crop_y_max, crop_x_min:crop_x_max]
 
             self.logger.info(
-                f"Marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
+                f"Universal marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
             )
             self.logger.info(
-                f"Crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
+                f"Ideal crop size: {ideal_crop_width}x{ideal_crop_height}, adjusted: {adjusted_width}x{adjusted_height}"
+            )
+            self.logger.info(
+                f"Universal crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
             )
             return cropped
 
         except Exception as e:
             self.logger.error(f"Error cropping marker area: {e}")
+            return image
+
+    def _crop_perspective_corrected_area(
+        self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
+    ) -> np.ndarray:
+        """
+        Crop the area within the marker bounds for perspective-corrected images.
+        This method matches the scale and positioning of simple cropping by using
+        the same offset calculation approach.
+
+        Args:
+            image: Perspective-corrected image
+            corner_markers: Dictionary of corner markers
+
+        Returns:
+            Cropped image with same scale as simple cropping
+        """
+        try:
+            # Get all marker centers
+            centers = []
+            for marker_id in [
+                0,
+                1,
+                2,
+                3,
+            ]:  # Top-left, top-right, bottom-left, bottom-right
+                if marker_id in corner_markers:
+                    center = corner_markers[marker_id].center
+                    centers.append([center[0], center[1]])
+
+            centers = np.array(centers)
+
+            # Calculate the bounding box of marker centers
+            x_min = int(np.min(centers[:, 0]))
+            y_min = int(np.min(centers[:, 1]))
+            x_max = int(np.max(centers[:, 0]))
+            y_max = int(np.max(centers[:, 1]))
+
+            # Calculate the size of the marker area in the perspective-corrected image
+            marker_width = x_max - x_min
+            marker_height = y_max - y_min
+
+            # Define the target crop size (779x457)
+            target_width = 779
+            target_height = 457
+
+            # Calculate the scale factor to match simple cropping behavior
+            # In simple cropping, we use offset = (marker_size - target_size) // 2
+            # But in perspective correction, the marker spacing might be different
+            # We need to adjust the crop size to maintain the same visual scale
+
+            # Calculate what the crop size should be to maintain the same marker-to-crop ratio as simple cropping
+            # Target ratios from simple cropping: ~1.149 (width) and ~1.225 (height)
+            target_ratio_w = 1.149  # Based on analysis of simple cropping
+            target_ratio_h = 1.225
+
+            # Calculate ideal crop size to match these ratios
+            ideal_crop_width = int(marker_width / target_ratio_w)
+            ideal_crop_height = int(marker_height / target_ratio_h)
+
+            # Use the ideal crop size to match simple cropping ratios
+            # Don't force it to be the target size - let it be what it needs to be for proper scaling
+            adjusted_width = ideal_crop_width
+            adjusted_height = ideal_crop_height
+
+            # Calculate offset with the adjusted size
+            offset_x = (marker_width - adjusted_width) // 2
+            offset_y = (marker_height - adjusted_height) // 2
+
+            # Calculate the crop coordinates using the offset approach
+            crop_x_min = x_min + offset_x
+            crop_y_min = y_min + offset_y
+            crop_x_max = crop_x_min + adjusted_width
+            crop_y_max = crop_y_min + adjusted_height
+
+            # Ensure the crop is within image bounds
+            img_height, img_width = image.shape[:2]
+            crop_x_min = max(0, crop_x_min)
+            crop_y_min = max(0, crop_y_min)
+            crop_x_max = min(img_width, crop_x_max)
+            crop_y_max = min(img_height, crop_y_max)
+
+            # Adjust if the crop would be outside bounds
+            actual_width = crop_x_max - crop_x_min
+            actual_height = crop_y_max - crop_y_min
+
+            if actual_width < adjusted_width:
+                if crop_x_min == 0:
+                    crop_x_max = min(img_width, crop_x_min + adjusted_width)
+                else:
+                    crop_x_min = max(0, img_width - adjusted_width)
+                    crop_x_max = crop_x_min + adjusted_width
+
+            if actual_height < adjusted_height:
+                if crop_y_min == 0:
+                    crop_y_max = min(img_height, crop_y_min + adjusted_height)
+                else:
+                    crop_y_min = max(0, img_height - adjusted_height)
+                    crop_y_max = crop_y_min + adjusted_height
+
+            # Crop the image
+            cropped = image[crop_y_min:crop_y_max, crop_x_min:crop_x_max]
+
+            self.logger.info(
+                f"Perspective marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
+            )
+            self.logger.info(
+                f"Ideal crop size: {ideal_crop_width}x{ideal_crop_height}, adjusted: {adjusted_width}x{adjusted_height}"
+            )
+            self.logger.info(
+                f"Perspective crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
+            )
+            return cropped
+
+        except Exception as e:
+            self.logger.error(f"Error cropping perspective-corrected area: {e}")
             return image
 
     def _crop_masked_area(self, masked_image: np.ndarray) -> np.ndarray:
