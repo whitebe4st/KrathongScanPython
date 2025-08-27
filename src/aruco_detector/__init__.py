@@ -1,15 +1,13 @@
 """
-ArUco Marker Detection Module.
+ArUco Detection Module.
 
 This module provides functionality for:
-- Real-time ArUco marker detection
-- Pose estimation and tracking
-- Camera calibration and management
-- Marker data processing and validation
+- ArUco marker detection and pose estimation
+- Perspective correction using homography
+- Template masking for drawing extraction
+- Metadata generation and result saving
 """
 
-from .camera import CameraManager
-from .detector import ArUcoDetector
-from .marker import MarkerData, MarkerPose
+from .detector import ArUcoDetector, MarkerData, MarkerPose
 
-__all__ = ["ArUcoDetector", "CameraManager", "MarkerData", "MarkerPose"]
+__all__ = ["ArUcoDetector", "MarkerData", "MarkerPose"]
