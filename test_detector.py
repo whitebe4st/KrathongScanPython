@@ -40,10 +40,19 @@ def detect_image_warp(image_path: str, detector: ArUcoDetector) -> bool:
             print(f"⚠️  Not enough markers detected for warp analysis")
             return False
 
-        # Find corner markers (IDs 0, 1, 2, 3)
+        # Detect template first
+        marker_ids = [int(id) for id in ids.flatten()]
+        template_id = detector.detect_template(marker_ids)
+
+        if not template_id:
+            print(f"⚠️  No template detected for markers: {marker_ids}")
+            return False
+
+        # Get corner markers for the detected template
+        corner_marker_ids = detector.get_template_corner_markers()
         corner_markers = {}
         for i, marker_id in enumerate(ids.flatten()):
-            if marker_id in [0, 1, 2, 3]:
+            if marker_id in corner_marker_ids:
                 corner_markers[marker_id] = corners[i][
                     0
                 ]  # Get the 4 corners of this marker
@@ -59,12 +68,25 @@ def detect_image_warp(image_path: str, detector: ArUcoDetector) -> bool:
             marker_centers[marker_id] = center
 
         # Expected positions for a straight image (approximate)
-        # ID 0: top-left, ID 1: top-right, ID 2: bottom-left, ID 3: bottom-right
+        # For any template: first marker is top-left, second is top-right, third is bottom-left, fourth is bottom-right
+        marker_order = corner_marker_ids  # e.g., [0,1,2,3] or [4,5,6,7] etc.
         expected_order = [
-            (marker_centers[0], marker_centers[1]),  # Top edge (0 to 1)
-            (marker_centers[2], marker_centers[3]),  # Bottom edge (2 to 3)
-            (marker_centers[0], marker_centers[2]),  # Left edge (0 to 2)
-            (marker_centers[1], marker_centers[3]),  # Right edge (1 to 3)
+            (
+                marker_centers[marker_order[0]],
+                marker_centers[marker_order[1]],
+            ),  # Top edge
+            (
+                marker_centers[marker_order[2]],
+                marker_centers[marker_order[3]],
+            ),  # Bottom edge
+            (
+                marker_centers[marker_order[0]],
+                marker_centers[marker_order[2]],
+            ),  # Left edge
+            (
+                marker_centers[marker_order[1]],
+                marker_centers[marker_order[3]],
+            ),  # Right edge
         ]
 
         # Calculate angles of edges
@@ -207,14 +229,14 @@ def test_detection(image_path: str, output_dir: str = None, force_method: str = 
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Production mask
+    # Production mask (will be overridden by template detection)
     mask_path = "data/markers/templates/mask1_final.png"
     if not Path(mask_path).exists():
-        print(f"❌ Production mask not found: {mask_path}")
+        print(f"❌ Default mask not found: {mask_path}")
         return
 
     print(f"📸 Input image: {img_path}")
-    print(f"🎭 Production mask: {mask_path}")
+    print(f"🎭 Default mask: {mask_path} (will be overridden by template detection)")
     print(f"📁 Output directory: {output_dir}")
 
     # Initialize detector
@@ -248,7 +270,7 @@ def test_detection(image_path: str, output_dir: str = None, force_method: str = 
     print(f"\n🔄 Processing image...")
 
     try:
-        # Process the image
+        # Process the image (template detection happens inside process_image)
         result = detector.process_image(
             str(img_path), mask_path, str(output_path), use_homography=use_homography
         )
@@ -270,6 +292,13 @@ def test_detection(image_path: str, output_dir: str = None, force_method: str = 
                     dimensions = f"{final_img.shape[1]}x{final_img.shape[0]}"
 
                     print(f"\n✅ SUCCESS!")
+
+                    # Show template information if available
+                    if detector.current_template:
+                        print(
+                            f"🎭 Template: {detector.current_template} - {detector.current_template_config['name']}"
+                        )
+
                     print(f"📊 Coverage: {coverage:.1f}%")
                     print(f"📏 Final dimensions: {dimensions}")
                     print(f"📄 Output: {output_filename}")

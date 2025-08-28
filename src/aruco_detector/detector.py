@@ -5,6 +5,7 @@ This module provides comprehensive ArUco marker detection with:
 - Marker detection and pose estimation
 - Perspective correction using homography
 - Template masking for drawing extraction
+- Multi-template support for different krathong variants
 - Metadata generation
 """
 
@@ -16,6 +17,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+
+from .template_config import (
+    MARKER_TO_TEMPLATE,
+    TEMPLATE_MARKER_SETS,
+    detect_template_from_markers,
+    get_template_config,
+)
 
 
 @dataclass
@@ -73,8 +81,14 @@ class ArUcoDetector:
         self.camera_matrix = camera_matrix
         self.dist_coeffs = dist_coeffs
 
-        # Expected corner marker IDs (for perspective correction)
-        self.corner_marker_ids = [
+        # Template detection and configuration
+        self.template_configs = TEMPLATE_MARKER_SETS
+        self.marker_to_template = MARKER_TO_TEMPLATE
+        self.current_template = None
+        self.current_template_config = None
+
+        # Default corner marker IDs (for backward compatibility)
+        self.default_corner_marker_ids = [
             0,
             1,
             2,
@@ -82,6 +96,78 @@ class ArUcoDetector:
         ]  # Top-left, top-right, bottom-left, bottom-right
 
         self.logger.info(f"ArUco Detector initialized with {dict_type} dictionary")
+
+    def detect_template(self, marker_ids: List[int]) -> Optional[str]:
+        """
+        Detect which template is being used based on detected marker IDs.
+
+        Args:
+            marker_ids: List of detected ArUco marker IDs
+
+        Returns:
+            Template ID string or None if no match found
+        """
+        template_id = detect_template_from_markers(marker_ids)
+        if template_id:
+            self.current_template = template_id
+            self.current_template_config = get_template_config(template_id)
+            self.logger.info(
+                f"Detected template: {template_id} - {self.current_template_config['name']}"
+            )
+        else:
+            self.logger.warning(f"No template detected for markers: {marker_ids}")
+            self.current_template = None
+            self.current_template_config = None
+
+        return template_id
+
+    def get_template_corner_markers(self) -> List[int]:
+        """
+        Get the corner marker IDs for the current template.
+
+        Returns:
+            List of corner marker IDs for the current template, or default if no template detected
+        """
+        if self.current_template_config:
+            return self.current_template_config["markers"]
+        else:
+            return self.default_corner_marker_ids
+
+    def get_template_mask_path(self) -> Optional[str]:
+        """
+        Get the mask file path for the current template.
+
+        Returns:
+            Path to the template mask file, or None if no template detected
+        """
+        if self.current_template_config:
+            mask_filename = self.current_template_config["mask_file"]
+            # Look for mask in the templates directory
+            mask_path = Path("data/markers/templates") / mask_filename
+
+            # Try different naming conventions
+            if not mask_path.exists():
+                # Try with "mask" prefix and "final" suffix
+                alt_filename = f"mask{self.current_template[-1]}_final.png"
+                mask_path = Path("data/markers/templates") / alt_filename
+
+            if mask_path.exists():
+                self.logger.info(f"Using template mask: {mask_path}")
+                return str(mask_path)
+            else:
+                self.logger.warning(f"Template mask not found: {mask_path}")
+                return None
+        else:
+            # Fallback to default mask
+            default_mask = Path("data/markers/templates/mask1_final.png")
+            if default_mask.exists():
+                self.logger.info(f"Using default mask: {default_mask}")
+                return str(default_mask)
+            else:
+                self.logger.error(
+                    "No template mask found and no default mask available"
+                )
+                return None
 
     def _setup_logger(self):
         """Setup logger for the detector."""
@@ -255,18 +341,23 @@ class ArUcoDetector:
         Returns:
             Dictionary mapping marker IDs to marker data, or None if not all corners found
         """
+        # Get corner marker IDs for current template (or default)
+        corner_marker_ids = self.get_template_corner_markers()
+
         corner_markers = {}
 
         for marker in markers:
-            if marker.id in self.corner_marker_ids:
+            if marker.id in corner_marker_ids:
                 corner_markers[marker.id] = marker
 
         # Check if we have all four corner markers
         if len(corner_markers) == 4:
-            self.logger.info("All four corner markers detected")
+            self.logger.info(
+                f"All four corner markers detected: {list(corner_markers.keys())}"
+            )
             return corner_markers
         else:
-            missing_ids = set(self.corner_marker_ids) - set(corner_markers.keys())
+            missing_ids = set(corner_marker_ids) - set(corner_markers.keys())
             self.logger.warning(f"Missing corner markers: {missing_ids}")
             return None
 
@@ -283,8 +374,12 @@ class ArUcoDetector:
             Homography matrix for perspective correction
         """
         try:
+            # Get the marker order for the current template (or default)
+            corner_marker_ids = self.get_template_corner_markers()
+
             # Define the order: top-left, top-right, bottom-left, bottom-right
-            marker_order = [0, 1, 2, 3]
+            # For any template, we assume the markers are in the same relative positions
+            marker_order = corner_marker_ids  # [0,1,2,3] or [4,5,6,7] etc.
 
             # Get corner points in the correct order
             src_points = []
@@ -554,7 +649,11 @@ class ArUcoDetector:
                 self.logger.error("No markers detected")
                 return False
 
-            # Step 2: Get corner markers
+            # Step 1.5: Detect template from marker IDs
+            marker_ids = [marker.id for marker in markers]
+            template_id = self.detect_template(marker_ids)
+
+            # Step 2: Get corner markers (now template-aware)
             corner_markers = self.get_corner_markers(markers)
             if corner_markers is None:
                 self.logger.error("Could not find all corner markers")
@@ -592,8 +691,13 @@ class ArUcoDetector:
                 corrected = self._crop_marker_area(image, corner_markers)
                 self.logger.info("Used simple cropping (no homography)")
 
-            # Step 4: Apply template mask
-            masked = self.apply_template_mask(corrected, mask_path)
+            # Step 4: Apply template mask (template-aware)
+            template_mask_path = self.get_template_mask_path()
+            if template_mask_path:
+                masked = self.apply_template_mask(corrected, template_mask_path)
+            else:
+                # Fallback to provided mask path
+                masked = self.apply_template_mask(corrected, mask_path)
 
             # Step 5: Crop to only the masked content area
             final_result = self._crop_masked_area(masked)
@@ -601,9 +705,14 @@ class ArUcoDetector:
             # Step 6: Prepare metadata
             metadata = {
                 "input_image": image_path,
-                "mask_path": mask_path,
+                "mask_path": template_mask_path if template_mask_path else mask_path,
                 "output_image": output_path,
                 "detected_markers": len(markers),
+                "detected_marker_ids": marker_ids,
+                "template_detected": template_id,
+                "template_config": self.current_template_config
+                if self.current_template_config
+                else None,
                 "corner_markers": {
                     str(k): {"id": v.id, "center": v.center}
                     for k, v in corner_markers.items()
@@ -647,14 +756,12 @@ class ArUcoDetector:
             Cropped image
         """
         try:
-            # Get all marker centers
+            # Get all marker centers (template-aware)
             centers = []
-            for marker_id in [
-                0,
-                1,
-                2,
-                3,
-            ]:  # Top-left, top-right, bottom-left, bottom-right
+            corner_marker_ids = self.get_template_corner_markers()
+            for (
+                marker_id
+            ) in corner_marker_ids:  # Top-left, top-right, bottom-left, bottom-right
                 if marker_id in corner_markers:
                     center = corner_markers[marker_id].center
                     centers.append([center[0], center[1]])
