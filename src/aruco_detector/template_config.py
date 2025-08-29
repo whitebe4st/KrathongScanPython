@@ -33,7 +33,7 @@ TEMPLATE_MARKER_SETS = {
         "name": "Children Krathong",
         "description": "Kid-friendly simple design",
         "markers": [16, 17, 18, 19],
-        "mask_file": "mask5_final.png",  # To be created later
+        "mask_file": "krathong5_mask.png",  # To be created later
     },
 }
 
@@ -65,6 +65,40 @@ def detect_template_from_markers(detected_marker_ids):
             return template_id
 
     return None
+
+
+def detect_template_partial(detected_marker_ids, min_markers=3):
+    """
+    Detect which template is being used based on partial marker detection.
+    Useful for display purposes when not all markers are visible.
+
+    Args:
+        detected_marker_ids: List of detected ArUco marker IDs
+        min_markers: Minimum number of markers required for partial detection
+
+    Returns:
+        Template ID string or None if no match found
+    """
+    detected_set = set(detected_marker_ids)
+
+    best_match = None
+    best_score = 0
+
+    for template_id, config in TEMPLATE_MARKER_SETS.items():
+        template_markers = set(config["markers"])
+
+        # Calculate overlap
+        overlap = len(template_markers.intersection(detected_set))
+
+        # Only consider if we have at least min_markers
+        if overlap >= min_markers:
+            # Calculate score based on percentage of markers detected
+            score = overlap / len(template_markers)
+            if score > best_score:
+                best_score = score
+                best_match = template_id
+
+    return best_match
 
 
 # Get template configuration

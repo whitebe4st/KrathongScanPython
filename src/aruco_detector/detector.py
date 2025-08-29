@@ -5,13 +5,13 @@ This module provides comprehensive ArUco marker detection with:
 - Marker detection and pose estimation
 - Perspective correction using homography
 - Template masking for drawing extraction
-- Multi-template support for different krathong variants
 - Metadata generation
 """
 
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -22,6 +22,7 @@ from .template_config import (
     MARKER_TO_TEMPLATE,
     TEMPLATE_MARKER_SETS,
     detect_template_from_markers,
+    detect_template_partial,
     get_template_config,
 )
 
@@ -87,8 +88,8 @@ class ArUcoDetector:
         self.current_template = None
         self.current_template_config = None
 
-        # Default corner marker IDs (for backward compatibility)
-        self.default_corner_marker_ids = [
+        # Expected corner marker IDs (for perspective correction)
+        self.corner_marker_ids = [
             0,
             1,
             2,
@@ -97,17 +98,25 @@ class ArUcoDetector:
 
         self.logger.info(f"ArUco Detector initialized with {dict_type} dictionary")
 
-    def detect_template(self, marker_ids: List[int]) -> Optional[str]:
+    def detect_template(
+        self, marker_ids: List[int], use_partial: bool = False
+    ) -> Optional[str]:
         """
         Detect which template is being used based on detected marker IDs.
 
         Args:
             marker_ids: List of detected ArUco marker IDs
+            use_partial: Whether to use partial detection for display purposes
 
         Returns:
             Template ID string or None if no match found
         """
         template_id = detect_template_from_markers(marker_ids)
+
+        # If no strict template detected and partial detection is enabled, try partial
+        if not template_id and use_partial and len(marker_ids) >= 3:
+            template_id = detect_template_partial(marker_ids, min_markers=3)
+
         if template_id:
             self.current_template = template_id
             self.current_template_config = get_template_config(template_id)
@@ -131,7 +140,7 @@ class ArUcoDetector:
         if self.current_template_config:
             return self.current_template_config["markers"]
         else:
-            return self.default_corner_marker_ids
+            return self.corner_marker_ids
 
     def get_template_mask_path(self) -> Optional[str]:
         """
@@ -203,22 +212,22 @@ class ArUcoDetector:
         """Setup the ArUco detector with optimized parameters."""
         detector_params = cv2.aruco.DetectorParameters()
 
-        # Optimize detection parameters
+        # More sensitive parameters for webcam detection
         detector_params.adaptiveThreshWinSizeMin = 3
         detector_params.adaptiveThreshWinSizeMax = 23
         detector_params.adaptiveThreshWinSizeStep = 10
         detector_params.adaptiveThreshConstant = 7
-        detector_params.minMarkerPerimeterRate = 0.03
+        detector_params.minMarkerPerimeterRate = 0.02  # More sensitive (was 0.03)
         detector_params.maxMarkerPerimeterRate = 4.0
-        detector_params.polygonalApproxAccuracyRate = 0.03
+        detector_params.polygonalApproxAccuracyRate = 0.05  # More lenient (was 0.03)
         detector_params.cornerRefinementWinSize = 5
         detector_params.cornerRefinementMaxIterations = 30
         detector_params.cornerRefinementMinAccuracy = 0.001
         detector_params.markerBorderBits = 1
         detector_params.perspectiveRemovePixelPerCell = 4
         detector_params.perspectiveRemoveIgnoredMarginPerCell = 0.13
-        detector_params.maxErroneousBitsInBorderRate = 0.35
-        detector_params.minOtsuStdDev = 5.0
+        detector_params.maxErroneousBitsInBorderRate = 0.4  # More lenient (was 0.35)
+        detector_params.minOtsuStdDev = 3.0  # More sensitive (was 5.0)
         detector_params.errorCorrectionRate = 0.6
 
         return cv2.aruco.ArucoDetector(self.aruco_dict, detector_params)
@@ -374,12 +383,11 @@ class ArUcoDetector:
             Homography matrix for perspective correction
         """
         try:
-            # Get the marker order for the current template (or default)
-            corner_marker_ids = self.get_template_corner_markers()
-
             # Define the order: top-left, top-right, bottom-left, bottom-right
             # For any template, we assume the markers are in the same relative positions
-            marker_order = corner_marker_ids  # [0,1,2,3] or [4,5,6,7] etc.
+            marker_order = (
+                self.get_template_corner_markers()
+            )  # [0,1,2,3] or [4,5,6,7] etc.
 
             # Get corner points in the correct order
             src_points = []
@@ -615,6 +623,125 @@ class ArUcoDetector:
         except Exception as e:
             self.logger.error(f"Error saving debug images: {e}")
 
+    def process_frame(
+        self, frame: np.ndarray, output_path: str, use_homography: bool = False
+    ) -> bool:
+        """
+        Process a frame (numpy array) directly.
+
+        Args:
+            frame: Input frame as numpy array
+            output_path: Path for output image
+            use_homography: Whether to use homography correction instead of simple cropping
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.logger.info(f"Processing frame to: {output_path}")
+
+            # Step 1: Detect ArUco markers
+            markers = self.detect_markers(frame)
+            if not markers:
+                self.logger.error("No markers detected")
+                return False
+
+            # Step 1.5: Detect template from marker IDs
+            marker_ids = [marker.id for marker in markers]
+            template_id = self.detect_template(marker_ids)
+
+            # Step 2: Get corner markers (now template-aware)
+            corner_markers = self.get_corner_markers(markers)
+            if corner_markers is None:
+                self.logger.error("Could not find all corner markers")
+                return False
+
+            # Step 3: Extract the area using homography or simple cropping
+            if use_homography:
+                # Use homography for perspective correction
+                homography = self.create_perspective_transform(corner_markers)
+                if homography is None:
+                    self.logger.error("Could not create perspective transform")
+                    return False
+
+                corrected = self.apply_perspective_correction(frame, homography)
+                self.logger.info("Used homography perspective correction")
+
+                # Step 3.5: Detect markers again in straightened image and crop
+                straightened_markers = self.detect_markers(corrected)
+                straightened_corner_markers = self.get_corner_markers(
+                    straightened_markers
+                )
+                if straightened_corner_markers is None:
+                    self.logger.error(
+                        "Could not find corner markers in straightened image"
+                    )
+                    return False
+
+                # Use the new perspective cropping method
+                corrected = self._crop_perspective_corrected_area(
+                    corrected, straightened_corner_markers
+                )
+                self.logger.info("Used perspective-corrected cropping")
+            else:
+                # Use simple cropping (no homography)
+                corrected = self._crop_marker_area(frame, corner_markers)
+                self.logger.info("Used simple cropping (no homography)")
+
+            # Step 4: Apply template mask (template-aware)
+            template_mask_path = self.get_template_mask_path()
+            if template_mask_path:
+                masked = self.apply_template_mask(corrected, template_mask_path)
+            else:
+                self.logger.error("No template mask found")
+                return False
+
+            # Step 5: Crop to only the masked content area
+            final_result = self._crop_masked_area(masked)
+
+            # Step 6: Prepare metadata
+            metadata = {
+                "input_image": "webcam_frame",
+                "mask_path": str(template_mask_path) if template_mask_path else None,
+                "output_image": str(output_path),
+                "detected_markers": len(markers),
+                "detected_marker_ids": marker_ids,
+                "template_detected": template_id,
+                "template_config": self.current_template_config
+                if self.current_template_config
+                else None,
+                "corner_markers": {
+                    str(k): {"id": v.id, "center": v.center}
+                    for k, v in corner_markers.items()
+                },
+                "processing_timestamp": str(datetime.now().timestamp()),
+                "detector_config": {
+                    "dict_type": self.dict_type,
+                    "marker_size": self.marker_size,
+                },
+                "processing_method": "homography"
+                if use_homography
+                else "simple_cropping",
+            }
+
+            # Step 7: Save result
+            success = cv2.imwrite(output_path, final_result)
+            if not success:
+                self.logger.error(f"Failed to save image to {output_path}")
+                return False
+
+            # Step 8: Save metadata
+            metadata_path = str(output_path).replace(".png", ".json")
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+            self.logger.info(f"Successfully processed frame to {output_path}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error processing frame: {e}")
+            return False
+
     def process_image(
         self,
         image_path: str,
@@ -745,8 +872,8 @@ class ArUcoDetector:
         self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
     ) -> np.ndarray:
         """
-        Crop the area within the marker bounds using universal ratio-based method.
-        This method now uses the same ratio-based approach for both straight and warped images.
+        Crop the area within the marker bounds without homography.
+        Extracts a rectangular area positioned at the marker tips.
 
         Args:
             image: Input image
@@ -778,28 +905,20 @@ class ArUcoDetector:
             marker_width = x_max - x_min
             marker_height = y_max - y_min
 
-            # Use ratio-based cropping for consistency with warped image processing
-            # Target ratios from analysis: ~1.149 (width) and ~1.225 (height)
-            target_ratio_w = 1.149
-            target_ratio_h = 1.225
+            # Define the target crop size (779x457)
+            target_width = 779
+            target_height = 457
 
-            # Calculate ideal crop size to match these ratios
-            ideal_crop_width = int(marker_width / target_ratio_w)
-            ideal_crop_height = int(marker_height / target_ratio_h)
-
-            # Use the ideal crop size for consistent scaling
-            adjusted_width = ideal_crop_width
-            adjusted_height = ideal_crop_height
-
-            # Calculate offset with the adjusted size
-            offset_x = (marker_width - adjusted_width) // 2
-            offset_y = (marker_height - adjusted_height) // 2
+            # Calculate the offset to position the crop at the marker tips
+            # We want the crop to be centered within the marker area
+            offset_x = (marker_width - target_width) // 2
+            offset_y = (marker_height - target_height) // 2
 
             # Calculate the crop coordinates
             crop_x_min = x_min + offset_x
             crop_y_min = y_min + offset_y
-            crop_x_max = crop_x_min + adjusted_width
-            crop_y_max = crop_y_min + adjusted_height
+            crop_x_max = crop_x_min + target_width
+            crop_y_max = crop_y_min + target_height
 
             # Ensure the crop is within image bounds
             img_height, img_width = image.shape[:2]
@@ -809,34 +928,28 @@ class ArUcoDetector:
             crop_y_max = min(img_height, crop_y_max)
 
             # Adjust if the crop would be outside bounds
-            actual_width = crop_x_max - crop_x_min
-            actual_height = crop_y_max - crop_y_min
-
-            if actual_width < adjusted_width:
+            if crop_x_max - crop_x_min < target_width:
                 # Adjust to fit within image width
                 if crop_x_min == 0:
-                    crop_x_max = min(img_width, crop_x_min + adjusted_width)
+                    crop_x_max = min(img_width, target_width)
                 else:
-                    crop_x_min = max(0, crop_x_max - adjusted_width)
+                    crop_x_min = max(0, img_width - target_width)
 
-            if actual_height < adjusted_height:
+            if crop_y_max - crop_y_min < target_height:
                 # Adjust to fit within image height
                 if crop_y_min == 0:
-                    crop_y_max = min(img_height, crop_y_min + adjusted_height)
+                    crop_y_max = min(img_height, target_height)
                 else:
-                    crop_y_min = max(0, crop_y_max - adjusted_height)
+                    crop_y_min = max(0, img_height - target_height)
 
             # Crop the image
             cropped = image[crop_y_min:crop_y_max, crop_x_min:crop_x_max]
 
             self.logger.info(
-                f"Universal marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
+                f"Marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
             )
             self.logger.info(
-                f"Ideal crop size: {ideal_crop_width}x{ideal_crop_height}, adjusted: {adjusted_width}x{adjusted_height}"
-            )
-            self.logger.info(
-                f"Universal crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
+                f"Crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
             )
             return cropped
 
@@ -860,14 +973,12 @@ class ArUcoDetector:
             Cropped image with same scale as simple cropping
         """
         try:
-            # Get all marker centers
+            # Get all marker centers (template-aware)
             centers = []
-            for marker_id in [
-                0,
-                1,
-                2,
-                3,
-            ]:  # Top-left, top-right, bottom-left, bottom-right
+            corner_marker_ids = self.get_template_corner_markers()
+            for (
+                marker_id
+            ) in corner_marker_ids:  # Top-left, top-right, bottom-left, bottom-right
                 if marker_id in corner_markers:
                     center = corner_markers[marker_id].center
                     centers.append([center[0], center[1]])
