@@ -1,0 +1,38 @@
+{
+  "input_image": "G:\\MotionSix\\KrathongScanner\\data\\test_images\\krathong_warped.png",
+  "mask_path": "data\\markers\\templates\\mask1_final.png",
+  "output_image": "data\\processed_images\\krathong_warped_20250829_154601_processed.png",
+  "detected_markers": 4,
+  "detected_marker_ids": [2, 3, 0, 1],
+  "template_detected": "krathong1",
+  "template_config": {
+    "name": "Traditional Krathong (Original)",
+    "description": "Classic traditional design",
+    "markers": [0, 1, 2, 3],
+    "mask_file": "mask1_final.png"
+  },
+  "corner_markers": {
+    "2": {
+      "id": 2,
+      "center": [224.0, 628.75]
+    },
+    "3": {
+      "id": 3,
+      "center": [1095.75, 639.5]
+    },
+    "0": {
+      "id": 0,
+      "center": [200.75, 79.75]
+    },
+    "1": {
+      "id": 1,
+      "center": [994.25, 148.75]
+    }
+  },
+  "processing_timestamp": "1756283331.0495017",
+  "detector_config": {
+    "dict_type": "4X4_50",
+    "marker_size": 0.04
+  },
+  "processing_method": "simple_cropping"
+}

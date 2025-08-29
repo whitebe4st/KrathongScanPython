@@ -620,7 +620,7 @@ class AdvancedWebcamDetector:
                     str(capture_path),
                     "dummy_mask.png",  # Will be overridden
                     str(output_path),
-                    use_homography=False,  # Start with simple cropping
+                    use_homography=True,  # Use homography for better perspective correction
                 )
 
                 if success:

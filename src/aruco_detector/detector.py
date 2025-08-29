@@ -957,79 +957,134 @@ class ArUcoDetector:
             self.logger.error(f"Error cropping marker area: {e}")
             return image
 
+    def _apply_homography_correction(
+        self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
+    ) -> np.ndarray:
+        """
+        Apply homography transformation to correct perspective distortion.
+
+        Args:
+            image: Original (potentially warped) image
+            corner_markers: Dictionary of corner markers
+
+        Returns:
+            Perspective-corrected image
+        """
+        try:
+            # Get corner marker centers in the correct order
+            corner_marker_ids = self.get_template_corner_markers()
+            src_points = []
+
+            for marker_id in corner_marker_ids:
+                if marker_id in corner_markers:
+                    center = corner_markers[marker_id].center
+                    src_points.append([center[0], center[1]])
+
+            if len(src_points) != 4:
+                raise ValueError(f"Expected 4 corner markers, got {len(src_points)}")
+
+            src_points = np.array(src_points, dtype=np.float32)
+
+            # Calculate the bounding box of the markers
+            x_min, y_min = np.min(src_points, axis=0)
+            x_max, y_max = np.max(src_points, axis=0)
+
+            # Define target points for a perfect rectangle
+            # Use the same aspect ratio as the original marker area
+            marker_width = x_max - x_min
+            marker_height = y_max - y_min
+
+            # Create a perfect rectangle with the same dimensions
+            dst_points = np.array(
+                [
+                    [0, 0],  # Top-left
+                    [marker_width, 0],  # Top-right
+                    [0, marker_height],  # Bottom-left
+                    [marker_width, marker_height],  # Bottom-right
+                ],
+                dtype=np.float32,
+            )
+
+            # Calculate homography matrix
+            homography_matrix = cv2.findHomography(src_points, dst_points)[0]
+
+            # Apply perspective transformation
+            corrected_image = cv2.warpPerspective(
+                image,
+                homography_matrix,
+                (int(marker_width), int(marker_height)),
+                flags=cv2.INTER_LANCZOS4,
+            )
+
+            self.logger.info("Applied homography correction for perspective")
+            return corrected_image
+
+        except Exception as e:
+            self.logger.error(f"Error applying homography correction: {e}")
+            return image
+
+    def _apply_homography_and_crop(
+        self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
+    ) -> np.ndarray:
+        """
+        Apply homography transformation to correct perspective, then crop the area.
+        This is the complete pipeline for handling warped images.
+
+        Args:
+            image: Original (potentially warped) image
+            corner_markers: Dictionary of corner markers
+
+        Returns:
+            Perspective-corrected and cropped image
+        """
+        try:
+            # Step 1: Apply homography to correct perspective
+            corrected_image = self._apply_homography_correction(image, corner_markers)
+
+            # Step 2: Crop the corrected image
+            cropped = self._crop_perspective_corrected_area(
+                corrected_image, corner_markers
+            )
+
+            return cropped
+
+        except Exception as e:
+            self.logger.error(f"Error in homography and crop: {e}")
+            # Fallback to simple cropping
+            return self._crop_marker_area(image, corner_markers)
+
     def _crop_perspective_corrected_area(
         self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
     ) -> np.ndarray:
         """
         Crop the area within the marker bounds for perspective-corrected images.
-        This method matches the scale and positioning of simple cropping by using
-        the same offset calculation approach.
+        Since the image is already perspective-corrected, the markers are now
+        in a perfect rectangle, so we can use a simpler approach.
 
         Args:
             image: Perspective-corrected image
-            corner_markers: Dictionary of corner markers
+            corner_markers: Dictionary of corner markers (original coordinates, not used)
 
         Returns:
             Cropped image with same scale as simple cropping
         """
         try:
-            # Get all marker centers (template-aware)
-            centers = []
-            corner_marker_ids = self.get_template_corner_markers()
-            for (
-                marker_id
-            ) in corner_marker_ids:  # Top-left, top-right, bottom-left, bottom-right
-                if marker_id in corner_markers:
-                    center = corner_markers[marker_id].center
-                    centers.append([center[0], center[1]])
-
-            centers = np.array(centers)
-
-            # Calculate the bounding box of marker centers
-            x_min = int(np.min(centers[:, 0]))
-            y_min = int(np.min(centers[:, 1]))
-            x_max = int(np.max(centers[:, 0]))
-            y_max = int(np.max(centers[:, 1]))
-
-            # Calculate the size of the marker area in the perspective-corrected image
-            marker_width = x_max - x_min
-            marker_height = y_max - y_min
-
-            # Define the target crop size (779x457)
+            # Since the image is already perspective-corrected, the markers are now
+            # in a perfect rectangle. We can use the same target crop size as simple cropping.
             target_width = 779
             target_height = 457
 
-            # Calculate the scale factor to match simple cropping behavior
-            # In simple cropping, we use offset = (marker_size - target_size) // 2
-            # But in perspective correction, the marker spacing might be different
-            # We need to adjust the crop size to maintain the same visual scale
+            # Get image dimensions
+            img_height, img_width = image.shape[:2]
 
-            # Calculate what the crop size should be to maintain the same marker-to-crop ratio as simple cropping
-            # Target ratios from simple cropping: ~1.149 (width) and ~1.225 (height)
-            target_ratio_w = 1.149  # Based on analysis of simple cropping
-            target_ratio_h = 1.225
-
-            # Calculate ideal crop size to match these ratios
-            ideal_crop_width = int(marker_width / target_ratio_w)
-            ideal_crop_height = int(marker_height / target_ratio_h)
-
-            # Use the ideal crop size to match simple cropping ratios
-            # Don't force it to be the target size - let it be what it needs to be for proper scaling
-            adjusted_width = ideal_crop_width
-            adjusted_height = ideal_crop_height
-
-            # Calculate offset with the adjusted size
-            offset_x = (marker_width - adjusted_width) // 2
-            offset_y = (marker_height - adjusted_height) // 2
-
-            # Calculate the crop coordinates using the offset approach
-            crop_x_min = x_min + offset_x
-            crop_y_min = y_min + offset_y
-            crop_x_max = crop_x_min + adjusted_width
-            crop_y_max = crop_y_min + adjusted_height
+            # Calculate the crop area to center the target size within the image
+            # This matches the behavior of simple cropping
+            crop_x_min = (img_width - target_width) // 2
+            crop_y_min = (img_height - target_height) // 2
+            crop_x_max = crop_x_min + target_width
+            crop_y_max = crop_y_min + target_height
 
             # Ensure the crop is within image bounds
-            img_height, img_width = image.shape[:2]
             crop_x_min = max(0, crop_x_min)
             crop_y_min = max(0, crop_y_min)
             crop_x_max = min(img_width, crop_x_max)
@@ -1039,31 +1094,29 @@ class ArUcoDetector:
             actual_width = crop_x_max - crop_x_min
             actual_height = crop_y_max - crop_y_min
 
-            if actual_width < adjusted_width:
+            if actual_width < target_width:
                 if crop_x_min == 0:
-                    crop_x_max = min(img_width, crop_x_min + adjusted_width)
+                    crop_x_max = min(img_width, crop_x_min + target_width)
                 else:
-                    crop_x_min = max(0, img_width - adjusted_width)
-                    crop_x_max = crop_x_min + adjusted_width
+                    crop_x_min = max(0, img_width - target_width)
+                    crop_x_max = crop_x_min + target_width
 
-            if actual_height < adjusted_height:
+            if actual_height < target_height:
                 if crop_y_min == 0:
-                    crop_y_max = min(img_height, crop_y_min + adjusted_height)
+                    crop_y_max = min(img_height, crop_y_min + target_height)
                 else:
-                    crop_y_min = max(0, img_height - adjusted_height)
-                    crop_y_max = crop_y_min + adjusted_height
+                    crop_y_min = max(0, img_height - target_height)
+                    crop_y_max = crop_y_min + target_height
 
             # Crop the image
             cropped = image[crop_y_min:crop_y_max, crop_x_min:crop_x_max]
 
             self.logger.info(
-                f"Perspective marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
+                f"Perspective-corrected image size: {img_width}x{img_height}"
             )
+            self.logger.info(f"Target crop size: {target_width}x{target_height}")
             self.logger.info(
-                f"Ideal crop size: {ideal_crop_width}x{ideal_crop_height}, adjusted: {adjusted_width}x{adjusted_height}"
-            )
-            self.logger.info(
-                f"Perspective crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
+                f"Perspective crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({actual_width}x{actual_height})"
             )
             return cropped
 

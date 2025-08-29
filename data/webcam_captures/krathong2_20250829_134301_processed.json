@@ -1,0 +1,4 @@
+{
+  "input_image": "webcam_frame",
+  "mask_path": "data\\markers\\templates\\mask2_final.png",
+  "output_image":

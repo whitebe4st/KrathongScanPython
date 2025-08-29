@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from config.settings import config
+from ui.menu import KrathongScannerUI
 from utils.logger import setup_logger
 from webcam_detector import WebcamDetector
 from webcam_detector_advanced import AdvancedWebcamDetector
@@ -77,9 +78,9 @@ async def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["webcam", "webcam-advanced", "webcam-enhanced", "server"],
-        default="webcam",
-        help="Application mode: webcam (basic), webcam-advanced (auto-capture), webcam-enhanced (with paper detection), or server",
+        choices=["ui", "webcam", "webcam-advanced", "webcam-enhanced", "server"],
+        default="ui",
+        help="Application mode: ui (graphical interface), webcam (basic), webcam-advanced (auto-capture), webcam-enhanced (with paper detection), or server",
     )
     parser.add_argument(
         "--camera", type=int, default=0, help="Camera device index (default: 0)"
@@ -97,7 +98,11 @@ async def main():
     try:
         logger.info("Initializing KrathongScanner components...")
 
-        if args.mode == "webcam":
+        if args.mode == "ui":
+            logger.info("Running in UI mode")
+            app = KrathongScannerUI()
+            app.run()
+        elif args.mode == "webcam":
             logger.info("Running in webcam detection mode")
             run_webcam_detection("basic")
         elif args.mode == "webcam-advanced":

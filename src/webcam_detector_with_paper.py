@@ -179,10 +179,10 @@ class WebcamDetectorWithPaper:
                         f"No paper detected, using original frame for processing"
                     )
 
-                # Process with ArUco detector
+                # Process with ArUco detector (using homography for better perspective correction)
                 self.logger.info(f"Processing image to: {output_path}")
                 success = self.aruco_detector.process_frame(
-                    processed_frame, output_path
+                    processed_frame, output_path, use_homography=True
                 )
 
                 if success:

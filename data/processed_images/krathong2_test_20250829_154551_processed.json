@@ -1,0 +1,38 @@
+{
+  "input_image": "G:\\MotionSix\\KrathongScanner\\data\\test_images\\krathong2_test.png",
+  "mask_path": "data\\markers\\templates\\mask2_final.png",
+  "output_image": "data\\processed_images\\krathong2_test_20250829_154551_processed.png",
+  "detected_markers": 4,
+  "detected_marker_ids": [7, 5, 6, 4],
+  "template_detected": "krathong2",
+  "template_config": {
+    "name": "Modern Krathong",
+    "description": "Contemporary modern design",
+    "markers": [4, 5, 6, 7],
+    "mask_file": "mask2_final.png"
+  },
+  "corner_markers": {
+    "7": {
+      "id": 7,
+      "center": [1084.0, 636.5]
+    },
+    "5": {
+      "id": 5,
+      "center": [1084.0, 71.5]
+    },
+    "6": {
+      "id": 6,
+      "center": [195.5, 636.5]
+    },
+    "4": {
+      "id": 4,
+      "center": [195.5, 71.5]
+    }
+  },
+  "processing_timestamp": "1756365587.711529",
+  "detector_config": {
+    "dict_type": "4X4_50",
+    "marker_size": 0.04
+  },
+  "processing_method": "simple_cropping"
+}
