@@ -27,12 +27,13 @@ class ImagePreviewWindow:
     """Enhanced window for previewing and adjusting processed images with visual mask controls."""
 
     def __init__(
-        self, parent, original_image_path: str, processed_image: np.ndarray, detector
+        self, parent, original_image_path: str, processed_image: np.ndarray, detector, output_directory: Path
     ):
         self.parent = parent
         self.original_image_path = original_image_path
         self.processed_image = processed_image.copy()
         self.detector = detector
+        self.output_directory = output_directory
         self.result = None
 
         # Mask adjustment state
@@ -648,12 +649,8 @@ class ImagePreviewWindow:
             input_path = Path(self.original_image_path)
             timestamp = time.strftime("%Y%m%d_%H%M%S")
 
-            # Get output directory from parent UI
-            output_dir = (
-                self.parent.output_directory
-                if hasattr(self.parent, "output_directory")
-                else Path("data/processed_images")
-            )
+            # Use the output directory passed to this window
+            output_dir = self.output_directory
             output_dir.mkdir(parents=True, exist_ok=True)
 
             output_filename = f"{input_path.stem}_{timestamp}_processed.png"
@@ -998,7 +995,7 @@ class KrathongScannerUI:
         """Show the preview window."""
         try:
             preview_window = ImagePreviewWindow(
-                self.root, file_path, processed_image, self.aruco_detector
+                self.root, file_path, processed_image, self.aruco_detector, self.output_directory
             )
             # Set the initial homography setting to match the default
             preview_window.use_homography_var.set(self.default_homography_var.get())

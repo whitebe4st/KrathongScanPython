@@ -41,8 +41,14 @@ class WebcamDetectorWithPaper:
         """
         self.logger = self._setup_logger()
         self.camera_id = camera_id
-        # Use absolute path to ensure correct directory
-        self.capture_dir = Path(__file__).parent.parent / capture_dir
+        # Use the provided capture directory or default
+        if capture_dir and capture_dir != "data/webcam_captures":
+            # Use the custom directory provided by the UI
+            self.capture_dir = Path(capture_dir)
+        else:
+            # Use default directory
+            self.capture_dir = Path(__file__).parent.parent / capture_dir
+        
         self.capture_dir.mkdir(parents=True, exist_ok=True)
         self.logger.info(f"Capture directory: {self.capture_dir}")
 
