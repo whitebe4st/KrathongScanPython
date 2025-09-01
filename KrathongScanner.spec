@@ -8,10 +8,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('src', 'src'),
-        ('data/markers/templates/mask1_final.png', 'data/markers/templates'),
-        ('data/markers/templates/mask2_final.png', 'data/markers/templates'),
-        ('data/markers/templates/mask3_final.png', 'data/markers/templates'),
-        ('data/markers/templates/mask4_final.png', 'data/markers/templates'),
+        ('data/markers/templates', 'data/markers/templates'),
         ('data/processed_images', 'data/processed_images'),
     ],
     hiddenimports=[

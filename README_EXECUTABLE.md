@@ -38,6 +38,14 @@ The executable includes all necessary files:
 - **Import from Picture**: Browse and process image files
 - **Use Webcam**: Real-time scanning with paper detection
 - **Auto Directory Mode**: Monitor folder for new images
+- **Output Directory Selection**: Choose where to save processed images
+
+### Output Directory Management
+
+- **Custom Output Location**: Choose where to save processed images
+- **Directory Selection**: Use "📁 Select Directory" to browse folders
+- **Reset to Default**: Use "🔄 Reset to Default" to return to default location
+- **Universal Setting**: Applies to both import and webcam modes
 
 ### Enhanced Mask Adjustment
 
@@ -59,14 +67,16 @@ The executable includes all necessary files:
 
 1. Click "Import from Picture"
 2. Select an image file with ArUco markers
-3. Adjust mask position and size in the preview window
+3. (Optional) Choose output directory using "📁 Select Directory"
+4. Adjust mask position and size in the preview window
 4. Click "Save Image" when satisfied
 
 ### Webcam Mode
 
 1. Click "Use Webcam"
-2. Position krathong with markers visible
-3. Press 'c' to capture and process
+2. (Optional) Choose output directory using "📁 Select Directory"
+3. Position krathong with markers visible
+4. Press 'c' to capture and process
 4. Press 'q' to quit
 
 ### Auto Directory Mode

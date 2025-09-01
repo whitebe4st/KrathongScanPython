@@ -10,6 +10,7 @@ This module provides comprehensive ArUco marker detection with:
 
 import json
 import logging
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -151,32 +152,53 @@ class ArUcoDetector:
         """
         if self.current_template_config:
             mask_filename = self.current_template_config["mask_file"]
-            # Look for mask in the templates directory
-            mask_path = Path("data/markers/templates") / mask_filename
-
-            # Try different naming conventions
-            if not mask_path.exists():
+            
+            # Try multiple possible paths for both development and executable environments
+            possible_paths = [
+                # Development environment paths
+                Path("data/markers/templates") / mask_filename,
+                Path(__file__).parent.parent.parent / "data/markers/templates" / mask_filename,
+                
+                # Executable environment paths (PyInstaller)
+                Path(sys.executable).parent / "data/markers/templates" / mask_filename,
+                Path(sys.executable).parent / "src/data/markers/templates" / mask_filename,
+            ]
+            
+            # Try different naming conventions for each path
+            for base_path in possible_paths:
+                # Try original filename
+                mask_path = base_path
+                if mask_path.exists():
+                    self.logger.info(f"Using template mask: {mask_path}")
+                    return str(mask_path)
+                
                 # Try with "mask" prefix and "final" suffix
                 alt_filename = f"mask{self.current_template[-1]}_final.png"
-                mask_path = Path("data/markers/templates") / alt_filename
+                mask_path = base_path.parent / alt_filename
+                if mask_path.exists():
+                    self.logger.info(f"Using template mask: {mask_path}")
+                    return str(mask_path)
 
-            if mask_path.exists():
-                self.logger.info(f"Using template mask: {mask_path}")
-                return str(mask_path)
-            else:
-                self.logger.warning(f"Template mask not found: {mask_path}")
-                return None
+            self.logger.warning(f"Template mask not found in any location")
+            return None
         else:
-            # Fallback to default mask
-            default_mask = Path("data/markers/templates/mask1_final.png")
-            if default_mask.exists():
-                self.logger.info(f"Using default mask: {default_mask}")
-                return str(default_mask)
-            else:
-                self.logger.error(
-                    "No template mask found and no default mask available"
-                )
-                return None
+            # Fallback to default mask - try multiple paths
+            possible_paths = [
+                Path("data/markers/templates/mask1_final.png"),
+                Path(__file__).parent.parent.parent / "data/markers/templates/mask1_final.png",
+                Path(sys.executable).parent / "data/markers/templates/mask1_final.png",
+                Path(sys.executable).parent / "src/data/markers/templates/mask1_final.png",
+            ]
+            
+            for mask_path in possible_paths:
+                if mask_path.exists():
+                    self.logger.info(f"Using default mask: {mask_path}")
+                    return str(mask_path)
+            
+            self.logger.error(
+                "No template mask found and no default mask available"
+            )
+            return None
 
     def _setup_logger(self):
         """Setup logger for the detector."""
