@@ -7,7 +7,6 @@ This module provides a clean, user-friendly interface for:
 - Auto directory monitoring mode
 """
 
-import logging
 import os
 import threading
 import time
@@ -25,7 +24,7 @@ from webcam_detector_with_paper import WebcamDetectorWithPaper
 
 
 class ImagePreviewWindow:
-    """Window for previewing and adjusting processed images."""
+    """Enhanced window for previewing and adjusting processed images with visual mask controls."""
 
     def __init__(
         self, parent, original_image_path: str, processed_image: np.ndarray, detector
@@ -36,10 +35,25 @@ class ImagePreviewWindow:
         self.detector = detector
         self.result = None
 
+        # Mask adjustment state
+        self.mask_overlay_visible = True
+        self.mask_scale = 1.0
+        self.mask_x_offset = 0
+        self.mask_y_offset = 0
+        self.mask_rotation = 0.0
+
+        # Interactive transform state
+        self.dragging = False
+        self.drag_start = None
+        self.selected_handle = None
+        self.dragging_box = False
+        self.transform_handles = []  # [(x, y, handle_type), ...]
+        self.mask_box = None  # (x, y, width, height)
+
         # Create preview window
         self.window = tk.Toplevel(parent)
-        self.window.title("Image Preview & Mask Alignment")
-        self.window.geometry("800x700")
+        self.window.title("Enhanced Image Preview & Mask Adjustment")
+        self.window.geometry("1400x1000")
         self.window.resizable(True, True)
 
         # Center the window
@@ -63,7 +77,7 @@ class ImagePreviewWindow:
         self.window.geometry(f"{width}x{height}+{x}+{y}")
 
     def create_interface(self):
-        """Create the preview interface."""
+        """Create the enhanced preview interface."""
         # Main container
         main_frame = ttk.Frame(self.window, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -71,16 +85,16 @@ class ImagePreviewWindow:
         # Title
         title_label = ttk.Label(
             main_frame,
-            text="Image Preview & Mask Alignment",
+            text="Enhanced Image Preview & Mask Adjustment",
             font=("Segoe UI", 16, "bold"),
         )
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
 
-        # Image preview area
-        self.create_image_preview(main_frame)
+        # Image preview area with mask overlay
+        self.create_enhanced_image_preview(main_frame)
 
-        # Controls area
-        self.create_controls(main_frame)
+        # Enhanced controls area
+        self.create_enhanced_controls(main_frame)
 
         # Action buttons
         self.create_action_buttons(main_frame)
@@ -91,16 +105,16 @@ class ImagePreviewWindow:
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(1, weight=1)
 
-    def create_image_preview(self, parent):
-        """Create the image preview area."""
+    def create_enhanced_image_preview(self, parent):
+        """Create the enhanced image preview area with mask overlay."""
         # Preview frame
-        preview_frame = ttk.LabelFrame(parent, text="Preview", padding="10")
+        preview_frame = ttk.LabelFrame(parent, text="Interactive Preview", padding="10")
         preview_frame.grid(
             row=1, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 20)
         )
 
-        # Canvas for image display
-        self.canvas = tk.Canvas(preview_frame, bg="white", width=600, height=400)
+        # Canvas for image display with mask overlay
+        self.canvas = tk.Canvas(preview_frame, bg="white", width=1200, height=700)
         self.canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Scrollbars
@@ -121,91 +135,118 @@ class ImagePreviewWindow:
         preview_frame.columnconfigure(0, weight=1)
         preview_frame.rowconfigure(0, weight=1)
 
-        # Display the processed image
-        self.display_image()
+        # Bind mouse events for interactive mask adjustment
+        self.canvas.bind("<Button-1>", self.on_mouse_down)
+        self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
+        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_up)
+        self.canvas.bind("<Motion>", self.on_mouse_move)
 
-    def create_controls(self, parent):
-        """Create the control panel."""
+        # Initialize mask overlay variable before displaying
+        self.mask_overlay_var = tk.BooleanVar(value=True)
+
+        # Display the processed image with mask overlay
+        self.display_image_with_mask()
+
+    def create_enhanced_controls(self, parent):
+        """Create the enhanced control panel."""
         # Controls frame
         controls_frame = ttk.LabelFrame(
-            parent, text="Processing Controls", padding="10"
+            parent, text="Enhanced Processing Controls", padding="10"
         )
         controls_frame.grid(
             row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20)
         )
 
-        # Homography toggle
-        homography_frame = ttk.Frame(controls_frame)
-        homography_frame.grid(
+        # Processing method toggle
+        processing_frame = ttk.Frame(controls_frame)
+        processing_frame.grid(
             row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15)
         )
 
-        ttk.Label(homography_frame, text="Perspective Correction:").grid(
+        ttk.Label(processing_frame, text="Perspective Correction:").grid(
             row=0, column=0, padx=(0, 10)
         )
         self.use_homography_var = tk.BooleanVar(value=True)
         homography_check = ttk.Checkbutton(
-            homography_frame,
+            processing_frame,
             text="Use Homography",
             variable=self.use_homography_var,
             command=self.on_processing_change,
         )
         homography_check.grid(row=0, column=1, padx=(0, 10))
-        ttk.Label(homography_frame, text="(Straightens warped images)").grid(
+        ttk.Label(processing_frame, text="(Straightens warped images)").grid(
             row=0, column=2
         )
 
-        # Mask adjustment controls
-        mask_frame = ttk.LabelFrame(controls_frame, text="Mask Alignment", padding="5")
-        mask_frame.grid(
+        # Mask overlay toggle
+        ttk.Label(processing_frame, text="Mask Overlay:").grid(
+            row=1, column=0, padx=(0, 10)
+        )
+        overlay_check = ttk.Checkbutton(
+            processing_frame,
+            text="Show Mask Overlay",
+            variable=self.mask_overlay_var,
+            command=self.toggle_mask_overlay,
+        )
+        overlay_check.grid(row=1, column=1, padx=(0, 10))
+        ttk.Label(processing_frame, text="(Visual mask preview)").grid(row=1, column=2)
+
+        # Quick adjustment controls
+        quick_frame = ttk.LabelFrame(
+            controls_frame, text="Quick Adjustments", padding="5"
+        )
+        quick_frame.grid(
             row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10)
         )
 
-        ttk.Label(mask_frame, text="Mask Scale:").grid(row=0, column=0, padx=(0, 10))
+        # Scale control
+        ttk.Label(quick_frame, text="Scale:").grid(row=0, column=0, padx=(0, 10))
         self.scale_var = tk.DoubleVar(value=1.0)
         scale_scale = ttk.Scale(
-            mask_frame,
+            quick_frame,
             from_=0.5,
             to=2.0,
             variable=self.scale_var,
             orient=tk.HORIZONTAL,
-            length=200,
-            command=self.on_mask_adjust,
+            length=150,
+            command=self.on_quick_adjust,
         )
-        scale_scale.grid(row=0, column=1, padx=(0, 20))
-        ttk.Label(mask_frame, textvariable=self.scale_var).grid(row=0, column=2)
+        scale_scale.grid(row=0, column=1, padx=(0, 10))
+        ttk.Label(quick_frame, textvariable=self.scale_var).grid(row=0, column=2)
 
-        ttk.Label(mask_frame, text="X Offset:").grid(row=1, column=0, padx=(0, 10))
+        # X Offset control
+        ttk.Label(quick_frame, text="X Offset:").grid(row=1, column=0, padx=(0, 10))
         self.x_offset_var = tk.IntVar(value=0)
         x_offset_scale = ttk.Scale(
-            mask_frame,
+            quick_frame,
             from_=-100,
             to=100,
             variable=self.x_offset_var,
             orient=tk.HORIZONTAL,
-            length=200,
-            command=self.on_mask_adjust,
+            length=150,
+            command=self.on_quick_adjust,
         )
-        x_offset_scale.grid(row=1, column=1, padx=(0, 20))
-        ttk.Label(mask_frame, textvariable=self.x_offset_var).grid(row=1, column=2)
+        x_offset_scale.grid(row=1, column=1, padx=(0, 10))
+        ttk.Label(quick_frame, textvariable=self.x_offset_var).grid(row=1, column=2)
 
-        ttk.Label(mask_frame, text="Y Offset:").grid(row=2, column=0, padx=(0, 10))
+        # Y Offset control
+        ttk.Label(quick_frame, text="Y Offset:").grid(row=2, column=0, padx=(0, 10))
         self.y_offset_var = tk.IntVar(value=0)
         y_offset_scale = ttk.Scale(
-            mask_frame,
+            quick_frame,
             from_=-100,
             to=100,
             variable=self.y_offset_var,
             orient=tk.HORIZONTAL,
-            length=200,
-            command=self.on_mask_adjust,
+            length=150,
+            command=self.on_quick_adjust,
         )
-        y_offset_scale.grid(row=2, column=1, padx=(0, 20))
-        ttk.Label(mask_frame, textvariable=self.y_offset_var).grid(row=2, column=2)
+        y_offset_scale.grid(row=2, column=1, padx=(0, 10))
+        ttk.Label(quick_frame, textvariable=self.y_offset_var).grid(row=2, column=2)
 
         # Reset button
         reset_btn = ttk.Button(
-            mask_frame, text="Reset Adjustments", command=self.reset_adjustments
+            quick_frame, text="Reset All", command=self.reset_adjustments
         )
         reset_btn.grid(row=3, column=0, columnspan=3, pady=(10, 0))
 
@@ -218,24 +259,24 @@ class ImagePreviewWindow:
         # Save button
         save_btn = ttk.Button(
             button_frame,
-            text="save image",
+            text="💾 Save Image",
             command=self.save_image,
             style="Large.TButton",
         )
         save_btn.grid(row=0, column=0, padx=(0, 10))
 
         # Cancel button
-        cancel_btn = ttk.Button(button_frame, text="cancel", command=self.cancel)
+        cancel_btn = ttk.Button(button_frame, text="❌ Cancel", command=self.cancel)
         cancel_btn.grid(row=0, column=1, padx=(0, 10))
 
         # Re-process button
         reprocess_btn = ttk.Button(
-            button_frame, text=" reprocess", command=self.reprocess_image
+            button_frame, text="🔄 Re-process", command=self.reprocess_image
         )
         reprocess_btn.grid(row=0, column=2)
 
-    def display_image(self):
-        """Display the processed image on the canvas."""
+    def display_image_with_mask(self):
+        """Display the processed image with mask overlay."""
         try:
             # Convert BGR to RGB
             rgb_image = cv2.cvtColor(self.processed_image, cv2.COLOR_BGR2RGB)
@@ -244,8 +285,8 @@ class ImagePreviewWindow:
             pil_image = Image.fromarray(rgb_image)
 
             # Resize to fit canvas while maintaining aspect ratio
-            canvas_width = 600
-            canvas_height = 400
+            canvas_width = 1200
+            canvas_height = 700
 
             # Calculate scaling
             img_width, img_height = pil_image.size
@@ -265,32 +306,212 @@ class ImagePreviewWindow:
             self.canvas.delete("all")
             self.canvas.create_image(0, 0, anchor=tk.NW, image=self.photo_image)
 
+            # Add mask overlay if enabled
+            if self.mask_overlay_var.get():
+                self.draw_mask_overlay()
+
             # Update scroll region
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to display image: {str(e)}")
 
+    def draw_mask_overlay(self):
+        """Draw the mask overlay on the canvas."""
+        try:
+            # Get the current mask parameters
+            scale = self.scale_var.get()
+            x_offset = self.x_offset_var.get()
+            y_offset = self.y_offset_var.get()
+
+            # Calculate mask bounds based on actual image dimensions
+            img_width, img_height = self.photo_image.width(), self.photo_image.height()
+
+            # Calculate mask rectangle (representing the actual mask area)
+            # Use a reasonable default size that matches typical mask proportions
+            base_width = int(img_width * 0.85)  # 85% of image width
+            base_height = int(img_height * 0.85)  # 85% of image height
+
+            # Apply scale
+            mask_width = int(base_width * scale)
+            mask_height = int(base_height * scale)
+
+            # Center the mask and apply offsets
+            mask_x = (img_width - mask_width) // 2 + x_offset
+            mask_y = (img_height - mask_height) // 2 + y_offset
+
+            # Store mask box coordinates for dragging
+            self.mask_box = (mask_x, mask_y, mask_width, mask_height)
+
+            # Draw semi-transparent mask overlay
+            self.canvas.create_rectangle(
+                mask_x,
+                mask_y,
+                mask_x + mask_width,
+                mask_y + mask_height,
+                outline="red",
+                width=2,
+                dash=(5, 5),
+                fill="",
+                stipple="gray50",
+            )
+
+            # Draw corner handles for interactive adjustment
+            handle_size = 8
+            handles = [
+                (mask_x, mask_y, "top-left"),
+                (mask_x + mask_width, mask_y, "top-right"),
+                (mask_x, mask_y + mask_height, "bottom-left"),
+                (mask_x + mask_width, mask_y + mask_height, "bottom-right"),
+            ]
+
+            self.transform_handles = []
+            for x, y, handle_type in handles:
+                self.canvas.create_rectangle(
+                    x - handle_size // 2,
+                    y - handle_size // 2,
+                    x + handle_size // 2,
+                    y + handle_size // 2,
+                    fill="yellow",
+                    outline="red",
+                    width=2,
+                )
+                self.transform_handles.append((x, y, handle_type))
+
+            # Add instruction text
+            self.canvas.create_text(
+                10,
+                10,
+                anchor=tk.NW,
+                text="Drag box to move, handles to resize",
+                fill="white",
+                font=("Arial", 12, "bold"),
+            )
+
+            # Add current values display
+            self.canvas.create_text(
+                10,
+                35,
+                anchor=tk.NW,
+                text=f"Scale: {scale:.2f}, X: {x_offset}, Y: {y_offset}",
+                fill="white",
+                font=("Arial", 10),
+            )
+
+        except Exception as e:
+            pass  # Silently ignore mask overlay errors
+
+    def toggle_mask_overlay(self):
+        """Toggle the mask overlay visibility."""
+        self.mask_overlay_visible = self.mask_overlay_var.get()
+        self.display_image_with_mask()
+
+    def on_mouse_down(self, event):
+        """Handle mouse button press."""
+        self.dragging = True
+        self.drag_start = (event.x, event.y)
+
+        # Check if clicking on a handle
+        for i, (x, y, handle_type) in enumerate(self.transform_handles):
+            if abs(event.x - x) <= 8 and abs(event.y - y) <= 8:
+                self.selected_handle = i
+                return
+
+        # Check if clicking inside the mask box for dragging
+        if self.mask_box:
+            x, y, width, height = self.mask_box
+            if x <= event.x <= x + width and y <= event.y <= y + height:
+                self.dragging_box = True
+                self.selected_handle = None
+
+    def on_mouse_drag(self, event):
+        """Handle mouse drag."""
+        if not self.dragging:
+            return
+
+        # Calculate drag delta
+        dx = event.x - self.drag_start[0]
+        dy = event.y - self.drag_start[1]
+
+        if self.dragging_box:
+            # Dragging the entire mask box
+            self.x_offset_var.set(self.x_offset_var.get() + dx)
+            self.y_offset_var.set(self.y_offset_var.get() + dy)
+        elif self.selected_handle is not None:
+            # Dragging a corner handle
+            handle_type = self.transform_handles[self.selected_handle][2]
+
+            if "left" in handle_type:
+                self.x_offset_var.set(self.x_offset_var.get() + dx)
+            if "right" in handle_type:
+                # Adjust scale for right handles
+                scale_change = dx / 100.0
+                new_scale = self.scale_var.get() + scale_change
+                self.scale_var.set(max(0.5, min(2.0, new_scale)))
+            if "top" in handle_type:
+                self.y_offset_var.set(self.y_offset_var.get() + dy)
+            if "bottom" in handle_type:
+                # Adjust scale for bottom handles
+                scale_change = dy / 100.0
+                new_scale = self.scale_var.get() + scale_change
+                self.scale_var.set(max(0.5, min(2.0, new_scale)))
+
+        # Update drag start position
+        self.drag_start = (event.x, event.y)
+
+        # Re-process the image with new mask settings
+        self.reprocess_with_current_settings()
+
+    def on_mouse_up(self, event):
+        """Handle mouse button release."""
+        self.dragging = False
+        self.dragging_box = False
+        self.selected_handle = None
+        self.drag_start = None
+
+    def on_mouse_move(self, event):
+        """Handle mouse movement for cursor changes."""
+        # Change cursor when hovering over handles or mask box
+        cursor = "arrow"
+
+        # Check handles first
+        for x, y, handle_type in self.transform_handles:
+            if abs(event.x - x) <= 8 and abs(event.y - y) <= 8:
+                cursor = "crosshair"
+                break
+
+        # Check if hovering over mask box
+        if cursor == "arrow" and self.mask_box:
+            x, y, width, height = self.mask_box
+            if x <= event.x <= x + width and y <= event.y <= y + height:
+                cursor = "fleur"  # Move cursor
+
+        self.canvas.configure(cursor=cursor)
+
     def on_processing_change(self):
         """Handle processing method changes (homography toggle)."""
         try:
-            # Re-process with current settings
             self.reprocess_with_current_settings()
         except Exception as e:
             messagebox.showerror(
                 "Error", f"Failed to change processing method: {str(e)}"
             )
 
-    def on_mask_adjust(self, *args):
-        """Handle mask adjustment changes."""
+    def on_quick_adjust(self, *args):
+        """Handle quick adjustment changes."""
         try:
-            # Re-process with current settings
+            # Update internal state
+            self.mask_scale = self.scale_var.get()
+            self.mask_x_offset = self.x_offset_var.get()
+            self.mask_y_offset = self.y_offset_var.get()
+
+            # Re-process the image with new mask settings
             self.reprocess_with_current_settings()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to adjust mask: {str(e)}")
 
     def reprocess_with_current_settings(self):
-        """Re-process the image with current settings (homography + mask adjustments)."""
+        """Re-process the image with current settings."""
         try:
             # Get current settings
             use_homography = self.use_homography_var.get()
@@ -342,14 +563,10 @@ class ImagePreviewWindow:
                 self.processed_image = cropped
 
             # Update display
-            self.display_image()
+            self.display_image_with_mask()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to re-process: {str(e)}")
-
-    def reprocess_with_adjustments(self, scale, x_offset, y_offset):
-        """Re-process the image with mask adjustments (legacy method)."""
-        self.reprocess_with_current_settings()
 
     def apply_adjusted_mask(self, image, mask_path, scale, x_offset, y_offset):
         """Apply mask with manual adjustments."""
@@ -417,10 +634,11 @@ class ImagePreviewWindow:
 
     def reset_adjustments(self):
         """Reset all adjustments to default values."""
-        self.use_homography_var.set(True)  # Default to homography
+        self.use_homography_var.set(True)
         self.scale_var.set(1.0)
         self.x_offset_var.set(0)
         self.y_offset_var.set(0)
+        self.mask_overlay_var.set(True)
         self.reprocess_with_current_settings()
 
     def save_image(self):
@@ -460,9 +678,6 @@ class ImagePreviewWindow:
             # Reset adjustments
             self.reset_adjustments()
 
-            # Re-process with original settings
-            self.reprocess_with_adjustments(1.0, 0, 0)
-
         except Exception as e:
             messagebox.showerror("Error", f"Failed to re-process: {str(e)}")
 
@@ -480,7 +695,6 @@ class KrathongScannerUI:
 
     def __init__(self):
         """Initialize the UI."""
-        self.logger = self._setup_logger()
         self.root = None
         self.auto_monitor_thread = None
         self.auto_monitor_running = False
@@ -489,19 +703,6 @@ class KrathongScannerUI:
 
         # Initialize detector
         self.aruco_detector = ArUcoDetector()
-
-    def _setup_logger(self) -> logging.Logger:
-        """Setup logger for the UI."""
-        logger = logging.getLogger(__name__)
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-            logger.setLevel(logging.INFO)
-        return logger
 
     def run(self):
         """Start the UI application."""
@@ -564,9 +765,6 @@ class KrathongScannerUI:
         # Mode selection buttons
         self.create_mode_buttons(main_frame)
 
-        # Status area
-        self.create_status_area(main_frame)
-
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
@@ -609,12 +807,12 @@ class KrathongScannerUI:
         # Configure button frame
         button_frame.columnconfigure(0, weight=1)
 
-    def create_status_area(self, parent):
-        """Create the status display area."""
+    def create_settings_area(self, parent):
+        """Create the settings area."""
         # Settings frame
         settings_frame = ttk.LabelFrame(parent, text="Settings", padding="10")
         settings_frame.grid(
-            row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10)
+            row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20)
         )
 
         # Homography toggle for initial processing
@@ -627,43 +825,6 @@ class KrathongScannerUI:
         )
         homography_check.grid(row=0, column=1, padx=(0, 10))
         ttk.Label(settings_frame, text="(For imported images)").grid(row=0, column=2)
-
-        # Status frame
-        status_frame = ttk.LabelFrame(parent, text="Status", padding="10")
-        status_frame.grid(
-            row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20)
-        )
-
-        # Status text
-        self.status_text = tk.Text(status_frame, height=8, width=60, wrap=tk.WORD)
-        self.status_text.grid(row=0, column=0, sticky=(tk.W, tk.E))
-
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(
-            status_frame, orient=tk.VERTICAL, command=self.status_text.yview
-        )
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.status_text.configure(yscrollcommand=scrollbar.set)
-
-        # Configure status frame
-        status_frame.columnconfigure(0, weight=1)
-        status_frame.rowconfigure(0, weight=1)
-
-        # Initial status
-        self.update_status("ready!")
-
-    def update_status(self, message: str):
-        """Update the status display."""
-        timestamp = time.strftime("%H:%M:%S")
-        status_line = f"[{timestamp}] {message}\n"
-
-        self.status_text.insert(tk.END, status_line)
-        self.status_text.see(tk.END)
-
-        # Keep only last 50 lines
-        lines = self.status_text.get("1.0", tk.END).split("\n")
-        if len(lines) > 50:
-            self.status_text.delete("1.0", f"{len(lines) - 50}.0")
 
     def import_from_picture(self):
         """Handle import from picture mode."""
@@ -680,8 +841,6 @@ class KrathongScannerUI:
             if not file_path:
                 return
 
-            self.update_status(f"Processing image: {os.path.basename(file_path)}")
-
             # Process in background thread
             thread = threading.Thread(
                 target=self.process_image_with_preview, args=(file_path,), daemon=True
@@ -689,8 +848,7 @@ class KrathongScannerUI:
             thread.start()
 
         except Exception as e:
-            self.logger.error(f"Error in import from picture: {e}")
-            self.update_status(f"❌ Error: {str(e)}")
+            messagebox.showerror("Error", f"Error: {str(e)}")
 
     def process_image_with_preview(self, file_path: str):
         """Process an image file with preview functionality."""
@@ -743,10 +901,12 @@ class KrathongScannerUI:
             )
 
         except Exception as e:
-            self.logger.error(f"Error processing image: {e}")
             error_msg = str(e)
             self.root.after(
-                0, lambda: self.update_status(f"❌ Error processing image: {error_msg}")
+                0,
+                lambda: messagebox.showerror(
+                    "Error", f"Error processing image: {error_msg}"
+                ),
             )
 
     def show_preview_window(self, file_path: str, processed_image: np.ndarray):
@@ -760,16 +920,16 @@ class KrathongScannerUI:
 
             if preview_window.result:
                 # Image was saved
-                self.update_status(
-                    f"✅ Successfully processed and saved: {os.path.basename(preview_window.result)}"
+                messagebox.showinfo(
+                    "Success",
+                    f"Successfully processed and saved: {os.path.basename(preview_window.result)}",
                 )
             else:
                 # User cancelled
-                self.update_status("❌ Image processing cancelled by user")
+                pass  # Silent cancellation
 
         except Exception as e:
-            self.logger.error(f"Error showing preview: {e}")
-            self.update_status(f"❌ Error showing preview: {str(e)}")
+            messagebox.showerror("Error", f"Error showing preview: {str(e)}")
 
     def process_image_file(self, file_path: str):
         """Process an image file (legacy method for auto directory mode)."""
@@ -792,38 +952,33 @@ class KrathongScannerUI:
             )
 
             if success:
-                self.update_status(f"✅ Successfully processed: {output_filename}")
+                messagebox.showinfo(
+                    "Success", f"Successfully processed: {output_filename}"
+                )
             else:
-                self.update_status(f"❌ Failed to process image")
+                messagebox.showerror("Error", "Failed to process image")
 
         except Exception as e:
-            self.logger.error(f"Error processing image: {e}")
-            self.update_status(f"❌ Error processing image: {str(e)}")
+            messagebox.showerror("Error", f"Error processing image: {str(e)}")
 
     def use_webcam(self):
         """Handle webcam mode."""
         try:
-            self.update_status("Starting webcam mode...")
-
             # Start webcam in background thread
             thread = threading.Thread(target=self.start_webcam_detector, daemon=True)
             thread.start()
 
         except Exception as e:
-            self.logger.error(f"Error starting webcam: {e}")
-            self.update_status(f"❌ Error starting webcam: {str(e)}")
+            messagebox.showerror("Error", f"Error starting webcam: {str(e)}")
 
     def start_webcam_detector(self):
         """Start the webcam detector."""
         try:
             detector = WebcamDetectorWithPaper()
-            self.update_status("📷 Webcam mode started - Press 'q' to quit")
             detector.run()
-            self.update_status("📷 Webcam mode stopped")
 
         except Exception as e:
-            self.logger.error(f"Error in webcam detector: {e}")
-            self.update_status(f"❌ Webcam error: {str(e)}")
+            messagebox.showerror("Error", f"Webcam error: {str(e)}")
 
     def auto_directory_mode(self):
         """Handle auto directory mode."""
@@ -835,7 +990,6 @@ class KrathongScannerUI:
                 return
 
             self.monitored_directory = Path(directory)
-            self.update_status(f"📂 Monitoring directory: {self.monitored_directory}")
 
             # Start monitoring in background
             if not self.auto_monitor_running:
@@ -845,14 +999,13 @@ class KrathongScannerUI:
                 )
                 self.auto_monitor_thread.start()
 
-                # Update button to show stop option
-                self.update_status(
-                    "🔄 Auto monitoring started - New files will be processed automatically"
+                messagebox.showinfo(
+                    "Auto Monitoring",
+                    "Auto monitoring started - New files will be processed automatically",
                 )
 
         except Exception as e:
-            self.logger.error(f"Error in auto directory mode: {e}")
-            self.update_status(f"❌ Error: {str(e)}")
+            messagebox.showerror("Error", f"Error: {str(e)}")
 
     def monitor_directory(self):
         """Monitor directory for new files."""
@@ -869,7 +1022,6 @@ class KrathongScannerUI:
                     ):
                         # Process the new file
                         self.processed_files.add(str(file_path))
-                        self.update_status(f"🔄 Processing new file: {file_path.name}")
 
                         # Process in separate thread to avoid blocking
                         thread = threading.Thread(
@@ -886,8 +1038,7 @@ class KrathongScannerUI:
                 time.sleep(5)
 
         except Exception as e:
-            self.logger.error(f"Error in directory monitoring: {e}")
-            self.update_status(f"❌ Monitoring error: {str(e)}")
+            messagebox.showerror("Error", f"Monitoring error: {str(e)}")
             self.auto_monitor_running = False
 
 
