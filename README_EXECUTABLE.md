@@ -69,7 +69,7 @@ The executable includes all necessary files:
 2. Select an image file with ArUco markers
 3. (Optional) Choose output directory using "📁 Select Directory"
 4. Adjust mask position and size in the preview window
-4. Click "Save Image" when satisfied
+5. Click "Save Image" when satisfied
 
 ### Webcam Mode
 
@@ -77,7 +77,7 @@ The executable includes all necessary files:
 2. (Optional) Choose output directory using "📁 Select Directory"
 3. Position krathong with markers visible
 4. Press 'c' to capture and process
-4. Press 'q' to quit
+5. Press 'q' to quit
 
 ### Auto Directory Mode
 

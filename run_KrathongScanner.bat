@@ -13,3 +13,4 @@ start "" "dist\KrathongScanner.exe"
 
 echo KrathongScanner started!
 pause
+

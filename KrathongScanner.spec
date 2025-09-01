@@ -8,8 +8,6 @@ a = Analysis(
     binaries=[],
     datas=[
         ('src', 'src'),
-        ('data/markers/templates', 'data/markers/templates'),
-        ('data/processed_images', 'data/processed_images'),
     ],
     hiddenimports=[
         'cv2',
