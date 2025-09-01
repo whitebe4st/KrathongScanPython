@@ -644,12 +644,18 @@ class ImagePreviewWindow:
     def save_image(self):
         """Save the processed image."""
         try:
-            # Generate output path
+            # Generate output path using parent's output directory
             input_path = Path(self.original_image_path)
-            output_dir = Path("data/processed_images")
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+
+            # Get output directory from parent UI
+            output_dir = (
+                self.parent.output_directory
+                if hasattr(self.parent, "output_directory")
+                else Path("data/processed_images")
+            )
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
             output_filename = f"{input_path.stem}_{timestamp}_processed.png"
             output_path = output_dir / output_filename
 
@@ -701,6 +707,10 @@ class KrathongScannerUI:
         self.monitored_directory = None
         self.processed_files = set()
 
+        # Output directory
+        self.output_directory = Path("data/processed_images")
+        self.output_directory.mkdir(parents=True, exist_ok=True)
+
         # Initialize detector
         self.aruco_detector = ArUcoDetector()
 
@@ -708,8 +718,8 @@ class KrathongScannerUI:
         """Start the UI application."""
         self.root = tk.Tk()
         self.root.title("KrathongScanner")
-        self.root.geometry("600x500")
-        self.root.resizable(False, False)
+        self.root.geometry("700x650")  # Made taller for output directory section
+        self.root.resizable(True, True)
 
         # Center the window
         self.center_window()
@@ -765,6 +775,12 @@ class KrathongScannerUI:
         # Mode selection buttons
         self.create_mode_buttons(main_frame)
 
+        # Output directory section
+        self.create_output_directory_section(main_frame)
+
+        # Settings area
+        self.create_settings_area(main_frame)
+
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
@@ -807,12 +823,81 @@ class KrathongScannerUI:
         # Configure button frame
         button_frame.columnconfigure(0, weight=1)
 
+    def create_output_directory_section(self, parent):
+        """Create the output directory selection section."""
+        # Output directory frame
+        output_frame = ttk.LabelFrame(parent, text="Output Directory", padding="10")
+        output_frame.grid(
+            row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20)
+        )
+
+        # Current directory display
+        self.output_dir_var = tk.StringVar(value=str(self.output_directory))
+        dir_label = ttk.Label(output_frame, text="Current output directory:")
+        dir_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
+
+        dir_display = ttk.Entry(
+            output_frame, textvariable=self.output_dir_var, state="readonly", width=50
+        )
+        dir_display.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(0, 10))
+
+        # Select directory button
+        select_dir_btn = ttk.Button(
+            output_frame,
+            text="📁 Select Directory",
+            command=self.select_output_directory,
+        )
+        select_dir_btn.grid(row=0, column=2, padx=(0, 10))
+
+        # Reset to default button
+        reset_dir_btn = ttk.Button(
+            output_frame,
+            text="🔄 Reset to Default",
+            command=self.reset_output_directory,
+        )
+        reset_dir_btn.grid(row=0, column=3)
+
+        # Configure grid weights
+        output_frame.columnconfigure(1, weight=1)
+
+    def select_output_directory(self):
+        """Select a new output directory."""
+        try:
+            directory = filedialog.askdirectory(
+                title="Select Output Directory for Processed Images",
+                initialdir=str(self.output_directory),
+            )
+
+            if directory:
+                self.output_directory = Path(directory)
+                self.output_directory.mkdir(parents=True, exist_ok=True)
+                self.output_dir_var.set(str(self.output_directory))
+                messagebox.showinfo(
+                    "Success", f"Output directory changed to:\n{self.output_directory}"
+                )
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to select directory: {str(e)}")
+
+    def reset_output_directory(self):
+        """Reset output directory to default."""
+        try:
+            default_dir = Path("data/processed_images")
+            self.output_directory = default_dir
+            self.output_directory.mkdir(parents=True, exist_ok=True)
+            self.output_dir_var.set(str(self.output_directory))
+            messagebox.showinfo(
+                "Success",
+                f"Output directory reset to default:\n{self.output_directory}",
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to reset directory: {str(e)}")
+
     def create_settings_area(self, parent):
         """Create the settings area."""
         # Settings frame
         settings_frame = ttk.LabelFrame(parent, text="Settings", padding="10")
         settings_frame.grid(
-            row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20)
+            row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20)
         )
 
         # Homography toggle for initial processing
@@ -934,9 +1019,9 @@ class KrathongScannerUI:
     def process_image_file(self, file_path: str):
         """Process an image file (legacy method for auto directory mode)."""
         try:
-            # Generate output path
+            # Generate output path using selected output directory
             input_path = Path(file_path)
-            output_dir = Path("data/processed_images")
+            output_dir = self.output_directory
             output_dir.mkdir(parents=True, exist_ok=True)
 
             timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -974,7 +1059,8 @@ class KrathongScannerUI:
     def start_webcam_detector(self):
         """Start the webcam detector."""
         try:
-            detector = WebcamDetectorWithPaper()
+            # Create webcam detector with custom output directory
+            detector = WebcamDetectorWithPaper(capture_dir=str(self.output_directory))
             detector.run()
 
         except Exception as e:
