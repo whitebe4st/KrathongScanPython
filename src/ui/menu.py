@@ -4,7 +4,6 @@ Modern UI Menu for KrathongScanner.
 This module provides a clean, user-friendly interface for:
 - Import krathong from picture (file browser)
 - Use webcam for real-time scanning
-- Auto directory monitoring mode
 """
 
 import os
@@ -20,6 +19,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from aruco_detector import ArUcoDetector
+from auto_directory_detector import AutoDirectoryDetector
 from webcam_detector_with_paper import WebcamDetectorWithPaper
 
 
@@ -27,7 +27,12 @@ class ImagePreviewWindow:
     """Enhanced window for previewing and adjusting processed images with visual mask controls."""
 
     def __init__(
-        self, parent, original_image_path: str, processed_image: np.ndarray, detector, output_directory: Path
+        self,
+        parent,
+        original_image_path: str,
+        processed_image: np.ndarray,
+        detector,
+        output_directory: Path,
     ):
         self.parent = parent
         self.original_image_path = original_image_path
@@ -285,7 +290,7 @@ class ImagePreviewWindow:
             # Convert to PIL Image
             pil_image = Image.fromarray(rgb_image)
 
-            # Resize to fit canvas while maintaining aspect ratio
+            # Resize to fit canvas while maintaining aspect ratios
             canvas_width = 1200
             canvas_height = 700
 
@@ -693,16 +698,11 @@ class KrathongScannerUI:
     - Clean, modern interface
     - File browser for image import
     - Webcam integration
-    - Auto directory monitoring
     """
 
     def __init__(self):
         """Initialize the UI."""
         self.root = None
-        self.auto_monitor_thread = None
-        self.auto_monitor_running = False
-        self.monitored_directory = None
-        self.processed_files = set()
 
         # Output directory
         self.output_directory = Path("data/processed_images")
@@ -715,6 +715,16 @@ class KrathongScannerUI:
         """Start the UI application."""
         self.root = tk.Tk()
         self.root.title("KrathongScanner")
+
+        # Set application icon
+        try:
+            icon_path = Path("krathong.ico")
+            if icon_path.exists():
+                self.root.iconbitmap(icon_path)
+        except Exception as e:
+            # Silently fail if icon can't be loaded
+            pass
+
         self.root.geometry("700x650")  # Made taller for output directory section
         self.root.resizable(True, True)
 
@@ -778,6 +788,9 @@ class KrathongScannerUI:
         # Settings area
         self.create_settings_area(main_frame)
 
+        # Status area
+        self.create_status_area(main_frame)
+
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
@@ -793,7 +806,7 @@ class KrathongScannerUI:
         # Import from picture button
         import_btn = ttk.Button(
             button_frame,
-            text="import from picture",
+            text="📁 Import from Picture",
             style="Large.TButton",
             command=self.import_from_picture,
         )
@@ -802,20 +815,20 @@ class KrathongScannerUI:
         # Webcam button
         webcam_btn = ttk.Button(
             button_frame,
-            text="use webcam",
+            text="📷 Use Webcam",
             style="Large.TButton",
             command=self.use_webcam,
         )
         webcam_btn.grid(row=1, column=0, padx=10, pady=10, sticky=(tk.W, tk.E))
 
-        # Auto directory button
-        auto_btn = ttk.Button(
+        # Auto-directory button
+        auto_dir_btn = ttk.Button(
             button_frame,
-            text="auto directory mode",
+            text="🔄 Auto-Directory Monitor",
             style="Large.TButton",
-            command=self.auto_directory_mode,
+            command=self.auto_directory_monitor,
         )
-        auto_btn.grid(row=2, column=0, padx=10, pady=10, sticky=(tk.W, tk.E))
+        auto_dir_btn.grid(row=2, column=0, padx=10, pady=10, sticky=(tk.W, tk.E))
 
         # Configure button frame
         button_frame.columnconfigure(0, weight=1)
@@ -908,6 +921,34 @@ class KrathongScannerUI:
         homography_check.grid(row=0, column=1, padx=(0, 10))
         ttk.Label(settings_frame, text="(For imported images)").grid(row=0, column=2)
 
+    def create_status_area(self, parent):
+        """Create the status display area."""
+        # Status frame
+        status_frame = ttk.LabelFrame(parent, text="Status", padding="10")
+        status_frame.grid(
+            row=5, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20)
+        )
+
+        # Status label
+        self.status_var = tk.StringVar(value="Ready")
+        self.status_label = ttk.Label(
+            status_frame, textvariable=self.status_var, foreground="green"
+        )
+        self.status_label.grid(row=0, column=0, sticky=tk.W)
+
+    def show_status(self, message: str, color: str = "blue"):
+        """
+        Update the status display.
+
+        Args:
+            message: Status message to display
+            color: Color for the status text (green, blue, red, orange)
+        """
+        if hasattr(self, "status_var"):
+            self.status_var.set(message)
+            if hasattr(self, "status_label"):
+                self.status_label.configure(foreground=color)
+
     def import_from_picture(self):
         """Handle import from picture mode."""
         try:
@@ -995,7 +1036,11 @@ class KrathongScannerUI:
         """Show the preview window."""
         try:
             preview_window = ImagePreviewWindow(
-                self.root, file_path, processed_image, self.aruco_detector, self.output_directory
+                self.root,
+                file_path,
+                processed_image,
+                self.aruco_detector,
+                self.output_directory,
             )
             # Set the initial homography setting to match the default
             preview_window.use_homography_var.set(self.default_homography_var.get())
@@ -1012,36 +1057,6 @@ class KrathongScannerUI:
 
         except Exception as e:
             messagebox.showerror("Error", f"Error showing preview: {str(e)}")
-
-    def process_image_file(self, file_path: str):
-        """Process an image file (legacy method for auto directory mode)."""
-        try:
-            # Generate output path using selected output directory
-            input_path = Path(file_path)
-            output_dir = self.output_directory
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            output_filename = f"{input_path.stem}_{timestamp}_processed.png"
-            output_path = output_dir / output_filename
-
-            # Process the image - use a default mask path since we'll detect the template automatically
-            default_mask_path = (
-                "data/markers/templates/mask1_final.png"  # Default fallback
-            )
-            success = self.aruco_detector.process_image(
-                str(input_path), default_mask_path, str(output_path)
-            )
-
-            if success:
-                messagebox.showinfo(
-                    "Success", f"Successfully processed: {output_filename}"
-                )
-            else:
-                messagebox.showerror("Error", "Failed to process image")
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Error processing image: {str(e)}")
 
     def use_webcam(self):
         """Handle webcam mode."""
@@ -1063,66 +1078,77 @@ class KrathongScannerUI:
         except Exception as e:
             messagebox.showerror("Error", f"Webcam error: {str(e)}")
 
-    def auto_directory_mode(self):
-        """Handle auto directory mode."""
+    def auto_directory_monitor(self):
+        """Handle auto-directory monitoring mode."""
         try:
-            # Select directory
-            directory = filedialog.askdirectory(title="Select Directory to Monitor")
+            # Ask user for input directory
+            input_directory = filedialog.askdirectory(
+                title="Select Directory to Monitor for New Krathong Images",
+                initialdir=str(Path.home()),
+            )
 
-            if not directory:
+            if not input_directory:
+                return  # User cancelled
+
+            # Confirm directories with user
+            result = messagebox.askyesno(
+                "Auto-Directory Monitor",
+                f"Monitor Directory: {input_directory}\n"
+                f"Output Directory: {self.output_directory}\n\n"
+                f"Start monitoring for new krathong images?\n\n"
+                f"The system will automatically process any new image files\n"
+                f"dropped into the monitor directory.",
+            )
+
+            if not result:
                 return
 
-            self.monitored_directory = Path(directory)
+            # Show status and start monitoring
+            self.show_status("Starting auto-directory monitor...")
 
-            # Start monitoring in background
-            if not self.auto_monitor_running:
-                self.auto_monitor_running = True
-                self.auto_monitor_thread = threading.Thread(
-                    target=self.monitor_directory, daemon=True
-                )
-                self.auto_monitor_thread.start()
+            # Start auto-directory monitor in background thread
+            thread = threading.Thread(
+                target=self.start_auto_directory_monitor,
+                args=(input_directory,),
+                daemon=True,
+            )
+            thread.start()
 
-                messagebox.showinfo(
-                    "Auto Monitoring",
-                    "Auto monitoring started - New files will be processed automatically",
-                )
+            # Show instruction dialog
+            messagebox.showinfo(
+                "Auto-Directory Monitor Started",
+                f"✅ Monitoring: {input_directory}\n"
+                f"📤 Output to: {self.output_directory}\n\n"
+                f"💡 Drop krathong images into the monitor folder and they will be\n"
+                f"    automatically processed!\n\n"
+                f"🛑 Close this application to stop monitoring.",
+            )
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error: {str(e)}")
+            messagebox.showerror(
+                "Error", f"Error starting auto-directory monitor: {str(e)}"
+            )
 
-    def monitor_directory(self):
-        """Monitor directory for new files."""
+    def start_auto_directory_monitor(self, input_directory: str):
+        """Start the auto-directory detector."""
         try:
-            while self.auto_monitor_running:
-                # Check for new image files
-                image_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".tiff"}
+            # Create auto-directory detector with same settings as import mode
+            detector = AutoDirectoryDetector(
+                input_directory=input_directory,
+                output_directory=str(self.output_directory),
+                check_interval=2.0,
+                use_homography=self.default_homography_var.get(),  # Use UI setting
+            )
 
-                for file_path in self.monitored_directory.iterdir():
-                    if (
-                        file_path.is_file()
-                        and file_path.suffix.lower() in image_extensions
-                        and str(file_path) not in self.processed_files
-                    ):
-                        # Process the new file
-                        self.processed_files.add(str(file_path))
+            # Update status
+            self.show_status(f"Monitoring: {input_directory}")
 
-                        # Process in separate thread to avoid blocking
-                        thread = threading.Thread(
-                            target=self.process_image_file,
-                            args=(str(file_path),),
-                            daemon=True,
-                        )
-                        thread.start()
-
-                        # Wait a bit to avoid processing too many files at once
-                        time.sleep(2)
-
-                # Check every 5 seconds
-                time.sleep(5)
+            # Run the detector (this will block until stopped)
+            detector.run()
 
         except Exception as e:
-            messagebox.showerror("Error", f"Monitoring error: {str(e)}")
-            self.auto_monitor_running = False
+            messagebox.showerror("Error", f"Auto-directory monitor error: {str(e)}")
+            self.show_status("Auto-directory monitor stopped due to error")
 
 
 def main():

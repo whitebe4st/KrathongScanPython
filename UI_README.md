@@ -4,7 +4,7 @@ A modern, user-friendly graphical interface for the KrathongScanner application.
 
 ## Features
 
-The UI provides three main modes for processing krathong images:
+The UI provides four main modes for processing krathong images:
 
 ### 1. 📁 Import Krathong from Picture
 
@@ -49,15 +49,21 @@ The UI provides three main modes for processing krathong images:
     - **Perspective Correction**: Uses homography to automatically correct warped/perspective-distorted images
 - **Use case**: For real-time scanning of physical krathong papers
 
-### 3. 📂 Auto Directory Mode
+### 3. 🔄 Auto-Directory Monitor
 
-- **Purpose**: Automatically monitor a folder for new krathong images
+- **Purpose**: Automatically monitor a directory for new krathong images and process them
 - **How it works**:
-  - Select a directory to monitor
-  - The app will check for new image files every 5 seconds
-  - New files are automatically processed one at a time
-  - Processed files are tracked to avoid reprocessing
-- **Use case**: For batch processing when images are being added to a folder
+  - Click the button to select a directory to monitor
+  - The system continuously scans for new image files
+  - Automatically processes any new krathong images found
+  - Uses the same detection and cropping pipeline as Import mode
+- **Features**:
+  - Real-time directory monitoring
+  - Automatic file detection and processing
+  - Supports multiple image formats (PNG, JPG, BMP, TIFF)
+  - Metadata generation for each processed image
+  - Background processing without blocking the UI
+- **Use case**: For batch processing or automated workflows where images are regularly added to a folder
 
 ## Settings & Status Display
 
@@ -191,9 +197,8 @@ Potential improvements for the UI:
 
 - [x] ✅ Preview of processed images in the UI
 - [x] ✅ Manual mask alignment controls
-- [ ] Stop button for auto directory monitoring
+- [x] ✅ Batch processing for multiple files (Auto-Directory Mode)
 - [ ] Settings panel for camera and processing options
-- [ ] Batch processing for multiple files
 - [ ] Export options for different formats
 - [ ] Keyboard shortcuts for common actions
 - [ ] Mask rotation controls

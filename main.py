@@ -16,6 +16,7 @@ from pathlib import Path
 # Add src to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+from auto_directory_detector import run_auto_directory_detection
 from config.settings import config
 from ui.menu import KrathongScannerUI
 from utils.logger import setup_logger
@@ -78,12 +79,46 @@ async def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["ui", "webcam", "webcam-advanced", "webcam-enhanced", "server"],
+        choices=[
+            "ui",
+            "webcam",
+            "webcam-advanced",
+            "webcam-enhanced",
+            "server",
+            "auto-directory",
+        ],
         default="ui",
-        help="Application mode: ui (graphical interface), webcam (basic), webcam-advanced (auto-capture), webcam-enhanced (with paper detection), or server",
+        help="Application mode: ui (graphical interface), webcam (basic), webcam-advanced (auto-capture), webcam-enhanced (with paper detection), server, or auto-directory (monitor folder for new images)",
     )
     parser.add_argument(
         "--camera", type=int, default=0, help="Camera device index (default: 0)"
+    )
+    parser.add_argument(
+        "--input-dir",
+        type=str,
+        help="Input directory to monitor for new images (auto-directory mode)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Output directory for processed images (auto-directory mode)",
+    )
+    parser.add_argument(
+        "--check-interval",
+        type=float,
+        default=2.0,
+        help="Interval in seconds to check for new files (default: 2.0)",
+    )
+    parser.add_argument(
+        "--use-homography",
+        action="store_true",
+        default=True,
+        help="Use homography/perspective correction (default: True)",
+    )
+    parser.add_argument(
+        "--no-homography",
+        action="store_true",
+        help="Disable homography/perspective correction",
     )
 
     args = parser.parse_args()
@@ -113,6 +148,41 @@ async def main():
                 "Running in enhanced webcam detection mode with paper detection"
             )
             run_webcam_detection("enhanced")
+        elif args.mode == "auto-directory":
+            logger.info("Running in auto-directory mode")
+
+            # Get directories from command line or prompt user
+            input_dir = args.input_dir
+            output_dir = args.output_dir
+
+            if not input_dir:
+                input_dir = input("Enter input directory to monitor: ").strip()
+                if not input_dir:
+                    logger.error("Input directory is required for auto-directory mode")
+                    return
+
+            if not output_dir:
+                output_dir = input(
+                    "Enter output directory for processed images: "
+                ).strip()
+                if not output_dir:
+                    output_dir = "data/processed_images"
+                    logger.info(f"Using default output directory: {output_dir}")
+
+            # Determine homography setting
+            use_homography = (
+                not args.no_homography if args.no_homography else args.use_homography
+            )
+
+            logger.info(f"Input directory: {input_dir}")
+            logger.info(f"Output directory: {output_dir}")
+            logger.info(f"Check interval: {args.check_interval} seconds")
+            logger.info(f"Use homography: {use_homography}")
+
+            # Run auto-directory detection
+            run_auto_directory_detection(
+                input_dir, output_dir, args.check_interval, use_homography
+            )
         elif args.mode == "server":
             logger.info("Running in server mode")
             # TODO: Initialize ArUco detector

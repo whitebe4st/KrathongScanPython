@@ -19,8 +19,6 @@ KrathongScanner.exe
 # Webcam Mode
 KrathongScanner.exe --mode webcam
 
-# Auto Directory Mode
-KrathongScanner.exe --mode auto
 ```
 
 ## 📁 File Structure
@@ -37,7 +35,6 @@ The executable includes all necessary files:
 
 - **Import from Picture**: Browse and process image files
 - **Use Webcam**: Real-time scanning with paper detection
-- **Auto Directory Mode**: Monitor folder for new images
 - **Output Directory Selection**: Choose where to save processed images
 
 ### Output Directory Management
@@ -78,13 +75,6 @@ The executable includes all necessary files:
 3. Position krathong with markers visible
 4. Press 'c' to capture and process
 5. Press 'q' to quit
-
-### Auto Directory Mode
-
-1. Click "Auto Directory Mode"
-2. Select a folder to monitor
-3. Place new images in the folder
-4. Images will be processed automatically
 
 ## 🐛 Troubleshooting
 
