@@ -1158,9 +1158,9 @@ class KrathongScannerUI:
     def generate_qr_link(self):
         """Generate QR code for public tunnel link."""
         try:
-            self.show_status("Checking for LocalTunnel connection...")
+            self.show_status("Checking for InstaTunnel connection...")
 
-            # Check if LocalTunnel is running
+            # Check if InstaTunnel is running
             tunnel_url = self.detect_tunnel_url()
 
             if tunnel_url:
@@ -1201,11 +1201,11 @@ class KrathongScannerUI:
                     messagebox.showerror("Error", "Failed to generate QR code")
                     self.show_status("QR generation failed")
             else:
-                # LocalTunnel not detected, offer to start it
+                # InstaTunnel not detected, offer to start it
                 result = messagebox.askyesno(
-                    "LocalTunnel Not Found",
-                    "No LocalTunnel connection detected.\n\n"
-                    "LocalTunnel is required for public QR links.\n"
+                    "InstaTunnel Not Found",
+                    "No InstaTunnel connection detected.\n\n"
+                    "InstaTunnel is required for public QR links.\n"
                     "Would you like to learn how to start it?",
                     icon="question",
                 )
@@ -1213,7 +1213,7 @@ class KrathongScannerUI:
                 if result:
                     self.show_tunnel_instructions()
 
-                self.show_status("LocalTunnel required for QR generation")
+                self.show_status("InstaTunnel required for QR generation")
 
         except Exception as e:
             messagebox.showerror("Error", f"QR Link generation error: {str(e)}")
@@ -1248,8 +1248,8 @@ class KrathongScannerUI:
                 print("🔄 Web server not running, will start it")
                 pass
 
-            # If no web server or no tunnel URL, start the web server with LocalTunnel
-            print("🚀 Starting web server with LocalTunnel...")
+            # If no web server or no tunnel URL, start the web server with InstaTunnel
+            print("🚀 Starting web server with InstaTunnel...")
             return self.start_web_server_with_tunnel()
 
         except Exception as e:
@@ -1257,7 +1257,7 @@ class KrathongScannerUI:
             return None
 
     def start_web_server_with_tunnel(self):
-        """Start the web server with LocalTunnel support."""
+        """Start the web server with InstaTunnel support."""
         try:
             # Import and start the web server
             from pathlib import Path
@@ -1273,12 +1273,12 @@ class KrathongScannerUI:
             server.RESULTS_FOLDER = str(self.output_directory)
             server.setup_auto_detector()
 
-            # Start LocalTunnel
-            print("🚇 Starting LocalTunnel...")
-            public_url = server.start_localtunnel(5000)
+            # Start InstaTunnel
+            print("� Starting InstaTunnel...")
+            public_url = server.start_instatunnel(5000)
 
             if public_url:
-                print(f"✅ LocalTunnel started: {public_url}")
+                print(f"✅ InstaTunnel started: {public_url}")
 
                 # Start the Flask server in a background thread
                 def run_server():
@@ -1297,7 +1297,7 @@ class KrathongScannerUI:
 
                 return public_url
             else:
-                print("⚠️ LocalTunnel failed to start")
+                print("⚠️ InstaTunnel failed to start")
 
                 # Try without tunnel - just local network
                 def run_server():
@@ -1322,17 +1322,19 @@ class KrathongScannerUI:
     def basic_tunnel_detection(self):
         """Basic tunnel detection fallback."""
         try:
+            # Check if InstaTunnel is running by listing active tunnels
             result = subprocess.run(
-                ["npx", "localtunnel", "--port", "5000", "--bypass-tunnel-reminder"],
+                ["instatunnel", "--list"],
                 capture_output=True,
                 text=True,
                 timeout=3,
             )
 
-            if result.returncode == 0 and "your url is:" in result.stdout:
+            if result.returncode == 0 and "https://" in result.stdout:
                 import re
 
-                url_match = re.search(r"https://[^\s]+\.loca\.lt", result.stdout)
+                # Look for InstaTunnel URL patterns
+                url_match = re.search(r"https://[^\s]+", result.stdout)
                 if url_match:
                     return url_match.group(0)
 
@@ -1366,7 +1368,7 @@ class KrathongScannerUI:
 
         # Explanation
         explanation = (
-            "The QR Link feature requires Node.js and LocalTunnel to create "
+            "The QR Link feature requires Node.js and InstaTunnel to create "
             "public URLs that work from anywhere.\n\n"
             "Node.js is not detected on your system."
         )
@@ -1440,7 +1442,7 @@ class KrathongScannerUI:
             "4. Restart your computer\n"
             "5. Restart KrathongScanner\n"
             "6. Try 'Generate QR Link' again\n\n"
-            "Node.js includes NPM and LocalTunnel capability."
+            "Node.js includes NPM and InstaTunnel capability."
         )
         messagebox.showinfo("Installation Steps", steps)
 
@@ -1492,17 +1494,22 @@ class KrathongScannerUI:
             return None
 
     def show_tunnel_instructions(self):
-        """Show instructions for starting LocalTunnel."""
+        """Show instructions for starting InstaTunnel."""
         instructions = (
-            "How to start LocalTunnel for public QR links:\n\n"
+            "How to start InstaTunnel for public QR links:\n\n"
             "1. Open a command prompt or terminal\n"
-            "2. Make sure Node.js is installed\n"
-            "3. Run: npx localtunnel --port 5000 --bypass-tunnel-reminder\n"
+            "2. Install InstaTunnel: npm install -g instatunnel\n"
+            "3. Run: instatunnel 5000\n"
             "4. Keep that terminal window open\n"
             "5. Click 'Generate QR Link' again\n\n"
-            "The QR code will work from anywhere in the world!"
+            "The QR code will work from anywhere in the world!\n\n"
+            "InstaTunnel Features:\n"
+            "• 24-hour sessions (vs LocalTunnel's 2 hours)\n"
+            "• Custom subdomains included\n"
+            "• Built-in password protection\n"
+            "• Zero configuration required"
         )
-        messagebox.showinfo("LocalTunnel Instructions", instructions)
+        messagebox.showinfo("InstaTunnel Instructions", instructions)
 
     def start_web_server(self):
         """Handle web server mode."""

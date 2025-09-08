@@ -678,6 +678,136 @@ def start_localtunnel_realtime(npx_cmd, port, env):
         return None
 
 
+def start_instatunnel(port):
+    """Start InstaTunnel for public access"""
+    global public_url
+
+    try:
+        print(f"🚀 Starting InstaTunnel on port {port}...")
+
+        # Find the correct InstaTunnel executable for Windows
+        instatunnel_cmd = "instatunnel"
+        possible_paths = [
+            r"C:\Users\white\AppData\Roaming\npm\instatunnel.cmd",
+            "instatunnel.cmd",
+            "instatunnel",
+        ]
+
+        # Try to find a working InstaTunnel command
+        instatunnel_found = False
+        for tunnel_path in possible_paths:
+            try:
+                check_result = subprocess.run(
+                    [tunnel_path, "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if check_result.returncode == 0:
+                    instatunnel_cmd = tunnel_path
+                    instatunnel_found = True
+                    print(f"✅ Found InstaTunnel at: {instatunnel_cmd}")
+                    break
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+
+        if not instatunnel_found:
+            print("❌ InstaTunnel not found. Install with: npm install -g instatunnel")
+            return None
+
+        # Generate a custom subdomain
+        import random
+        import string
+
+        custom_subdomain = "krathong-" + "".join(
+            random.choices(string.ascii_lowercase + string.digits, k=6)
+        )
+
+        # Start InstaTunnel as a background process
+        print("🚀 Starting InstaTunnel with real-time output parsing...")
+        process = subprocess.Popen(
+            [
+                instatunnel_cmd,
+                str(port),
+                "--subdomain",
+                custom_subdomain,
+                "--qr",
+                "--logs",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+        )
+
+        # Read output line by line with timeout
+        import time
+
+        start_time = time.time()
+        timeout = 15  # 15 seconds timeout for InstaTunnel
+
+        while time.time() - start_time < timeout:
+            if process.poll() is not None:
+                # Process has terminated
+                break
+
+            # Try to read a line with a short timeout
+            try:
+                line = process.stdout.readline()
+                if line:
+                    print(f"🚀 InstaTunnel: {line.strip()}")
+
+                    # Look for the tunnel URL in InstaTunnel output
+                    if "https://" in line and "instatunnel" in line.lower():
+                        import re
+
+                        url_match = re.search(r"https://[^\s]+", line)
+                        if url_match:
+                            tunnel_url = url_match.group(0)
+                            public_url = tunnel_url
+                            print(f"✅ InstaTunnel started: {tunnel_url}")
+
+                            # Generate QR code after tunnel is ready
+                            threading.Thread(
+                                target=auto_detect_tunnel_and_generate_qr, daemon=True
+                            ).start()
+
+                            return tunnel_url
+
+                    # InstaTunnel might output the URL differently
+                    if "tunnel" in line.lower() and "://" in line:
+                        import re
+
+                        url_match = re.search(r"https?://[^\s]+", line)
+                        if url_match:
+                            tunnel_url = url_match.group(0)
+                            public_url = tunnel_url
+                            print(f"✅ InstaTunnel started: {tunnel_url}")
+
+                            # Generate QR code after tunnel is ready
+                            threading.Thread(
+                                target=auto_detect_tunnel_and_generate_qr, daemon=True
+                            ).start()
+
+                            return tunnel_url
+
+            except:
+                pass
+
+            time.sleep(0.1)  # Small delay
+
+        print("⚠️ InstaTunnel URL not detected within timeout")
+        return None
+
+    except subprocess.TimeoutExpired:
+        print("⚠️ InstaTunnel startup timeout (15 seconds)")
+        return None
+    except Exception as e:
+        print(f"❌ InstaTunnel error: {e}")
+        return None
+
+
 def auto_detect_tunnel_and_generate_qr():
     """Automatically detect tunnel URL and generate QR codes"""
     global public_url

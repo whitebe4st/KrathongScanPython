@@ -94,9 +94,9 @@ def run_web_server(host="0.0.0.0", port=5000):
         # Initialize the auto detector
         server.setup_auto_detector()
 
-        # Start LocalTunnel if available
-        logger.info("Starting LocalTunnel for public access...")
-        public_url = server.start_localtunnel(port)
+        # Start InstaTunnel for public access
+        logger.info("Starting InstaTunnel for public access...")
+        public_url = server.start_instatunnel(port)
 
         if public_url:
             logger.info(f"Public URL: {public_url}")
