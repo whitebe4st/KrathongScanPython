@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KrathongScanner - อัปโหลดรูปภาพ</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 500px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+        color: white;
+        text-align: center;
+        padding: 30px 20px;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      .header p {
+        font-size: 16px;
+        opacity: 0.9;
+      }
+
+      .welcome-notice {
+        background: #e8f5e8;
+        border: 2px solid #4caf50;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 20px;
+        text-align: center;
+      }
+
+      .welcome-notice h3 {
+        color: #2e7d32;
+        margin-bottom: 8px;
+      }
+
+      .welcome-notice p {
+        color: #388e3c;
+        font-size: 14px;
+      }
+
+      .upload-area {
+        padding: 40px 20px;
+        text-align: center;
+      }
+
+      .upload-zone {
+        border: 3px dashed #ddd;
+        border-radius: 15px;
+        padding: 40px 20px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        background: #fafafa;
+      }
+
+      .upload-zone:hover {
+        border-color: #667eea;
+        background: #f0f4ff;
+      }
+
+      .upload-zone.dragover {
+        border-color: #ff6b6b;
+        background: #fff0f0;
+        transform: scale(1.02);
+      }
+
+      .upload-icon {
+        font-size: 48px;
+        color: #667eea;
+        margin-bottom: 15px;
+      }
+
+      .upload-text {
+        font-size: 18px;
+        color: #333;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .upload-subtext {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 20px;
+      }
+
+      .file-input {
+        display: none;
+      }
+
+      .select-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .select-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      .preview-area {
+        margin-top: 20px;
+        display: none;
+      }
+
+      .preview-image {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 10px;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 15px;
+      }
+
+      .upload-btn {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+        color: white;
+        padding: 15px 40px;
+        border: none;
+        border-radius: 25px;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+        margin-top: 10px;
+      }
+
+      .upload-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+      }
+
+      .upload-btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .progress-area {
+        margin-top: 20px;
+        display: none;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 20px;
+        background: #f0f0f0;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 15px;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        width: 0%;
+        transition: width 0.3s ease;
+        border-radius: 10px;
+      }
+
+      .status-text {
+        font-size: 16px;
+        text-align: center;
+        margin-bottom: 15px;
+        font-weight: 600;
+      }
+
+      .status-pending {
+        color: #667eea;
+      }
+
+      .status-processing {
+        color: #ff8e8e;
+      }
+
+      .status-completed {
+        color: #4caf50;
+      }
+
+      .status-error {
+        color: #f44336;
+      }
+
+      .result-area {
+        margin-top: 20px;
+        display: none;
+      }
+
+      .result-image {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 10px;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 15px;
+      }
+
+      .download-btn {
+        background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+        color: white;
+        padding: 15px 40px;
+        border: none;
+        border-radius: 25px;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
+      }
+
+      .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(76, 175, 80, 0.3);
+      }
+
+      .new-upload-btn {
+        background: transparent;
+        color: #667eea;
+        padding: 10px 20px;
+        border: 2px solid #667eea;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+        margin-top: 10px;
+      }
+
+      .new-upload-btn:hover {
+        background: #667eea;
+        color: white;
+      }
+
+      .footer {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+        font-size: 14px;
+        border-top: 1px solid #f0f0f0;
+      }
+
+      @media (max-width: 480px) {
+        .container {
+          margin: 10px;
+          border-radius: 15px;
+        }
+
+        .header {
+          padding: 25px 15px;
+        }
+
+        .header h1 {
+          font-size: 24px;
+        }
+
+        .upload-area {
+          padding: 30px 15px;
+        }
+      }
+
+      /* Animation classes */
+      .fade-in {
+        animation: fadeIn 0.5s ease-in;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .pulse {
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🏮 KrathongScanner</h1>
+        <p>อัปโหลดรูปภาพเพื่อประมวลผลแบบอัตโนมัติ</p>
+      </div>
+
+      <div class="welcome-notice">
+        <h3>🎨 ระบบสแกนงานศิลปะกระทง</h3>
+        <p>
+          นี่คือเว็บไซต์อย่างเป็นทางการสำหรับประมวลผลรูปภาพกระทงในงานประกวด<br />
+          ปลอดภัย 100% - ไม่มีการเก็บข้อมูลส่วนบุคคล
+        </p>
+      </div>
+
+      <div class="upload-area">
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon">📷</div>
+          <div class="upload-text">เลือกหรือลากไฟล์รูปภาพมาที่นี่</div>
+          <div class="upload-subtext">
+            รองรับไฟล์ JPG, PNG, GIF, BMP (ขนาดสูงสุด 16MB)
+          </div>
+          <button
+            type="button"
+            class="select-btn"
+            onclick="document.getElementById('fileInput').click()"
+          >
+            เลือกรูปภาพ
+          </button>
+          <input
+            type="file"
+            id="fileInput"
+            class="file-input"
+            accept="image/*"
+          />
+        </div>
+
+        <div class="preview-area" id="previewArea">
+          <img id="previewImage" class="preview-image" alt="Preview" />
+          <div
+            id="fileName"
+            style="
+              text-align: center;
+              margin-bottom: 10px;
+              font-weight: 600;
+              color: #333;
+            "
+          ></div>
+          <button
+            type="button"
+            class="upload-btn"
+            id="uploadBtn"
+            onclick="uploadFile()"
+          >
+            เริ่มประมวลผล
+          </button>
+        </div>
+
+        <div class="progress-area" id="progressArea">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="status-text" id="statusText">กำลังอัปโหลด...</div>
+        </div>
+
+        <div class="result-area" id="resultArea">
+          <div class="status-text status-completed">✅ ประมวลผลเสร็จสิ้น!</div>
+          <img id="resultImage" class="result-image" alt="Result" />
+          <a id="downloadBtn" class="download-btn" href="#" download>
+            📥 ดาวน์โหลดผลลัพธ์
+          </a>
+          <button type="button" class="new-upload-btn" onclick="resetForm()">
+            อัปโหลดรูปใหม่
+          </button>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>🚀 Powered by KrathongScanner v2.0</p>
+        <p>Made with ❤️ for automatic image processing</p>
+      </div>
+    </div>
+
+    <script>
+      // LocalTunnel bypass handler - automatically handle warning pages
+      (function () {
+        // Check if we're on a LocalTunnel domain
+        if (window.location.hostname.includes("loca.lt")) {
+          console.log(
+            "🚇 LocalTunnel detected - implementing bypass strategies",
+          );
+
+          // Method 1: Auto-click continue button if present
+          setTimeout(function () {
+            const continueBtn =
+              document.querySelector('button[onclick*="continue"]') ||
+              document.querySelector('a[href*="continue"]') ||
+              document.querySelector(".continue-btn") ||
+              document.querySelector("#continue");
+            if (continueBtn) {
+              console.log("🔄 Auto-clicking continue button");
+              continueBtn.click();
+            }
+          }, 100);
+
+          // Method 2: Check for redirect and handle it
+          if (
+            document.title.includes("LocalTunnel") ||
+            document.body.textContent.includes("LocalTunnel")
+          ) {
+            console.log("🔄 LocalTunnel warning detected - attempting bypass");
+            setTimeout(function () {
+              if (window.location.pathname === "/") {
+                window.location.href = window.location.origin + "/bypass";
+              }
+            }, 500);
+          }
+        }
+      })();
+
+      let selectedFile = null;
+      let currentJobId = null;
+
+      // File input change handler
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", function (e) {
+          const file = e.target.files[0];
+          if (file) {
+            handleFileSelection(file);
+          }
+        });
+
+      // Drag and drop handlers
+      const uploadZone = document.getElementById("uploadZone");
+
+      uploadZone.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        uploadZone.classList.add("dragover");
+      });
+
+      uploadZone.addEventListener("dragleave", function (e) {
+        e.preventDefault();
+        uploadZone.classList.remove("dragover");
+      });
+
+      uploadZone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        uploadZone.classList.remove("dragover");
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          handleFileSelection(files[0]);
+        }
+      });
+
+      function handleFileSelection(file) {
+        if (!isValidFile(file)) {
+          alert(
+            "กรุณาเลือกไฟล์รูปภาพที่ถูกต้อง (JPG, PNG, GIF, BMP) ขนาดไม่เกิน 16MB",
+          );
+          return;
+        }
+
+        selectedFile = file;
+
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          document.getElementById("previewImage").src = e.target.result;
+          document.getElementById("fileName").textContent = file.name;
+          document.getElementById("previewArea").style.display = "block";
+          document.getElementById("previewArea").classList.add("fade-in");
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function isValidFile(file) {
+        const allowedTypes = [
+          "image/jpeg",
+          "image/jpg",
+          "image/png",
+          "image/gif",
+          "image/bmp",
+        ];
+        const maxSize = 16 * 1024 * 1024; // 16MB
+
+        return allowedTypes.includes(file.type) && file.size <= maxSize;
+      }
+
+      async function uploadFile() {
+        if (!selectedFile) {
+          alert("กรุณาเลือกไฟล์ก่อน");
+          return;
+        }
+
+        // Show progress
+        document.getElementById("progressArea").style.display = "block";
+        document.getElementById("progressArea").classList.add("fade-in");
+        document.getElementById("uploadBtn").disabled = true;
+
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        try {
+          // Upload file
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            currentJobId = result.job_id;
+            updateStatus("อัปโหลดเสร็จสิ้น กำลังประมวลผล...", "processing");
+
+            // Start monitoring progress
+            monitorProgress(currentJobId);
+          } else {
+            throw new Error(result.error || "อัปโหลดไม่สำเร็จ");
+          }
+        } catch (error) {
+          console.error("Upload error:", error);
+          updateStatus("เกิดข้อผิดพลาด: " + error.message, "error");
+          document.getElementById("uploadBtn").disabled = false;
+        }
+      }
+
+      async function monitorProgress(jobId) {
+        const maxRetries = 60; // 60 seconds max
+        let retries = 0;
+
+        const checkStatus = async () => {
+          try {
+            const response = await fetch(`/status/${jobId}`);
+            const status = await response.json();
+
+            if (status.status === "completed") {
+              updateStatus("ประมวลผลเสร็จสิ้น!", "completed");
+              showResult(status.preview_url, status.download_url);
+              return;
+            } else if (status.status === "error") {
+              throw new Error(status.error || "เกิดข้อผิดพลาดในการประมวลผล");
+            } else if (status.status === "processing") {
+              updateStatus("กำลังประมวลผล...", "processing");
+              document.getElementById("progressFill").style.width =
+                Math.min(90, (retries / maxRetries) * 100) + "%";
+            }
+
+            retries++;
+            if (retries < maxRetries) {
+              setTimeout(checkStatus, 1000);
+            } else {
+              throw new Error("หมดเวลาการประมวลผล กรุณาลองใหม่อีกครั้ง");
+            }
+          } catch (error) {
+            console.error("Status check error:", error);
+            updateStatus("เกิดข้อผิดพลาด: " + error.message, "error");
+            document.getElementById("uploadBtn").disabled = false;
+          }
+        };
+
+        checkStatus();
+      }
+
+      function updateStatus(text, type) {
+        const statusText = document.getElementById("statusText");
+        statusText.textContent = text;
+        statusText.className = "status-text status-" + type;
+
+        if (type === "processing") {
+          statusText.classList.add("pulse");
+        } else {
+          statusText.classList.remove("pulse");
+        }
+      }
+
+      function showResult(previewUrl, downloadUrl) {
+        document.getElementById("progressFill").style.width = "100%";
+
+        setTimeout(() => {
+          document.getElementById("resultImage").src = previewUrl;
+          document.getElementById("downloadBtn").href = downloadUrl;
+          document.getElementById("resultArea").style.display = "block";
+          document.getElementById("resultArea").classList.add("fade-in");
+        }, 500);
+      }
+
+      function resetForm() {
+        selectedFile = null;
+        currentJobId = null;
+
+        document.getElementById("fileInput").value = "";
+        document.getElementById("previewArea").style.display = "none";
+        document.getElementById("progressArea").style.display = "none";
+        document.getElementById("resultArea").style.display = "none";
+        document.getElementById("uploadBtn").disabled = false;
+        document.getElementById("progressFill").style.width = "0%";
+
+        // Reset classes
+        document.querySelectorAll(".fade-in").forEach((el) => {
+          el.classList.remove("fade-in");
+        });
+      }
+
+      // Add some interactive feedback
+      document.addEventListener("DOMContentLoaded", function () {
+        // Add click effect to buttons
+        document.querySelectorAll("button, .download-btn").forEach((button) => {
+          button.addEventListener("click", function (e) {
+            const ripple = document.createElement("div");
+            ripple.style.position = "absolute";
+            ripple.style.borderRadius = "50%";
+            ripple.style.background = "rgba(255, 255, 255, 0.6)";
+            ripple.style.transform = "scale(0)";
+            ripple.style.animation = "ripple 0.6s linear";
+            ripple.style.left = e.clientX - button.offsetLeft + "px";
+            ripple.style.top = e.clientY - button.offsetTop + "px";
+
+            button.style.position = "relative";
+            button.style.overflow = "hidden";
+            button.appendChild(ripple);
+
+            setTimeout(() => {
+              ripple.remove();
+            }, 600);
+          });
+        });
+      });
+
+      // Add ripple effect CSS
+      const style = document.createElement("style");
+      style.textContent = `
+            @keyframes ripple {
+                to {
+                    transform: scale(4);
+                    opacity: 0;
+                }
+            }
+        `;
+      document.head.appendChild(style);
+    </script>
+  </body>
+</html>

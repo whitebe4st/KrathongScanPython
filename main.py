@@ -11,6 +11,8 @@ import asyncio
 import logging
 import signal
 import sys
+import threading
+import time
 from pathlib import Path
 
 # Add src to Python path
@@ -71,6 +73,66 @@ def run_webcam_detection(mode="basic"):
         logger.error(f"Error in webcam detection: {e}")
 
 
+def run_web_server(host="0.0.0.0", port=5000):
+    """Run the KrathongScanner web server."""
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info("Starting KrathongScanner Web Server...")
+        logger.info(f"Server will be available at http://localhost:{port}")
+
+        # Import Flask server components
+        sys.path.insert(0, str(Path(__file__).parent / "web"))
+
+        # Import and run the server
+        import server
+
+        # Set Flask configuration
+        server.app.config["HOST"] = host
+        server.app.config["PORT"] = port
+
+        # Initialize the auto detector
+        server.setup_auto_detector()
+
+        # Start LocalTunnel if available
+        logger.info("Starting LocalTunnel for public access...")
+        public_url = server.start_localtunnel(port)
+
+        if public_url:
+            logger.info(f"Public URL: {public_url}")
+            qr_code = server.generate_qr_code(public_url)
+            if qr_code:
+                logger.info("QR code generated for mobile access")
+        else:
+            logger.warning("Server will only be available locally")
+
+        logger.info(f"Upload folder: {server.UPLOAD_FOLDER}")
+        logger.info(f"Results folder: {server.RESULTS_FOLDER}")
+        logger.info("=" * 50)
+        logger.info("🎯 Web Server Ready! Upload images to process them automatically")
+        logger.info("=" * 50)
+
+        # Start Flask server
+        server.app.run(host=host, port=port, debug=False, use_reloader=False)
+
+    except ImportError as e:
+        logger.error(f"Failed to import web server components: {e}")
+        logger.error("Make sure Flask and other web dependencies are installed:")
+        logger.error("pip install flask werkzeug requests qrcode pillow")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Error starting web server: {e}")
+        sys.exit(1)
+    finally:
+        # Cleanup
+        try:
+            import server
+
+            server.cleanup_on_exit()
+        except:
+            pass
+
+
 async def main():
     """Main application function."""
     # Parse command line arguments
@@ -86,9 +148,10 @@ async def main():
             "webcam-enhanced",
             "server",
             "auto-directory",
+            "web-server",
         ],
         default="ui",
-        help="Application mode: ui (graphical interface), webcam (basic), webcam-advanced (auto-capture), webcam-enhanced (with paper detection), server, or auto-directory (monitor folder for new images)",
+        help="Application mode: ui (graphical interface), webcam (basic), webcam-advanced (auto-capture), webcam-enhanced (with paper detection), web-server (mobile upload interface), auto-directory (monitor folder for new images), or server (WebSocket API)",
     )
     parser.add_argument(
         "--camera", type=int, default=0, help="Camera device index (default: 0)"
@@ -183,6 +246,11 @@ async def main():
             run_auto_directory_detection(
                 input_dir, output_dir, args.check_interval, use_homography
             )
+        elif args.mode == "web-server":
+            logger.info("Running in web server mode")
+
+            # Run the web server (this will block)
+            run_web_server()
         elif args.mode == "server":
             logger.info("Running in server mode")
             # TODO: Initialize ArUco detector

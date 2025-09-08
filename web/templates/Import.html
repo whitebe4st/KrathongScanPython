@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Import Picture Demo</title>
+  </head>
+  <body style="text-align: center; font-family: Arial; margin-top: 50px">
+    <h1>อัปโหลดรูปจากมือถือ</h1>
+    <p>กดปุ่มด้านล่างเพื่อเลือกไฟล์รูปภาพจากเครื่อง</p>
+
+    <!-- ปุ่ม Import Picture -->
+    <input type="file" accept="image/*" onchange="previewImage(event)" />
+
+    <br /><br />
+
+    <!-- ตำแหน่งแสดงรูป -->
+    <img
+      id="output"
+      width="300"
+      style="display: none; border: 2px solid #333; border-radius: 10px"
+    />
+
+    <script>
+      function previewImage(event) {
+        const img = document.getElementById("output");
+        img.src = URL.createObjectURL(event.target.files[0]);
+        img.style.display = "block";
+      }
+    </script>
+  </body>
+</html>

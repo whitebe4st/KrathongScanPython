@@ -9,13 +9,20 @@ python-dotenv>=1.0.0
 asyncio-mqtt>=0.13.0
 
 # ArUco and Computer Vision
-aruco>=0.1.0
+# aruco>=0.1.0  # Not needed - using cv2.aruco from opencv-contrib-python
 imutils>=0.5.4
 
 # WebSocket and API
 fastapi>=0.104.0
 uvicorn[websockets]>=0.24.0
 websocket-client>=1.6.0
+
+# Web Server Dependencies
+flask>=2.3.0
+werkzeug>=2.3.0
+requests>=2.31.0
+qrcode>=7.4.0
+pillow>=10.0.0
 
 # Utilities
 pydantic>=2.5.0

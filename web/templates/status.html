@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KrathongScanner - Server Status</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+        color: white;
+        text-align: center;
+        padding: 30px 20px;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      .status-area {
+        padding: 40px 20px;
+      }
+
+      .status-card {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-left: 5px solid #4caf50;
+      }
+
+      .status-card.warning {
+        border-left-color: #ff9800;
+      }
+
+      .status-card.error {
+        border-left-color: #f44336;
+      }
+
+      .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        font-size: 16px;
+      }
+
+      .status-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .status-label {
+        font-weight: 600;
+        color: #333;
+      }
+
+      .status-value {
+        color: #666;
+        font-weight: 500;
+      }
+
+      .status-value.success {
+        color: #4caf50;
+      }
+
+      .status-value.warning {
+        color: #ff9800;
+      }
+
+      .status-value.error {
+        color: #f44336;
+      }
+
+      .qr-section {
+        text-align: center;
+        margin: 20px 0;
+      }
+
+      .qr-code {
+        max-width: 200px;
+        margin: 20px auto;
+        border-radius: 10px;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .url-display {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 10px;
+        font-family: monospace;
+        font-size: 14px;
+        color: #333;
+        word-break: break-all;
+        margin: 10px 0;
+      }
+
+      .actions {
+        text-align: center;
+        padding: 20px;
+        border-top: 1px solid #f0f0f0;
+      }
+
+      .btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+        margin: 5px;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      .btn.secondary {
+        background: transparent;
+        color: #667eea;
+        border: 2px solid #667eea;
+      }
+
+      .btn.secondary:hover {
+        background: #667eea;
+        color: white;
+      }
+
+      @media (max-width: 480px) {
+        .container {
+          margin: 10px;
+          border-radius: 15px;
+        }
+
+        .header {
+          padding: 25px 15px;
+        }
+
+        .status-area {
+          padding: 30px 15px;
+        }
+
+        .status-item {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 5px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🚀 KrathongScanner Server</h1>
+        <p>Server Status & Information</p>
+      </div>
+
+      <div class="status-area">
+        <div
+          class="status-card {% if status.server_running %}success{% else %}error{% endif %}"
+        >
+          <div class="status-item">
+            <span class="status-label">🟢 Server Status:</span>
+            <span
+              class="status-value {% if status.server_running %}success{% else %}error{% endif %}"
+            >
+              {% if status.server_running %}Running{% else %}Stopped{% endif %}
+            </span>
+          </div>
+
+          <div class="status-item">
+            <span class="status-label">🤖 Auto Detector:</span>
+            <span
+              class="status-value {% if status.auto_detector_running %}success{% else %}warning{% endif %}"
+            >
+              {% if status.auto_detector_running %}Active{% else %}Inactive{%
+              endif %}
+            </span>
+          </div>
+        </div>
+
+        <div class="status-card">
+          <div class="status-item">
+            <span class="status-label">📊 Active Jobs:</span>
+            <span class="status-value">{{ status.active_jobs }}</span>
+          </div>
+
+          <div class="status-item">
+            <span class="status-label">✅ Completed Jobs:</span>
+            <span class="status-value success"
+              >{{ status.completed_jobs }}</span
+            >
+          </div>
+
+          <div class="status-item">
+            <span class="status-label">📈 Total Jobs:</span>
+            <span class="status-value">{{ status.total_jobs }}</span>
+          </div>
+        </div>
+
+        {% if status.public_url %}
+        <div class="status-card success">
+          <div class="qr-section">
+            <h3 style="margin-bottom: 15px; color: #333">📱 Mobile Access</h3>
+            <p style="color: #666; margin-bottom: 15px">
+              Scan QR code to access from mobile device:
+            </p>
+
+            {% if qr_code %}
+            <img src="{{ qr_code }}" alt="QR Code" class="qr-code" />
+            {% endif %}
+
+            <div class="url-display">{{ status.public_url }}</div>
+          </div>
+        </div>
+        {% else %}
+        <div class="status-card warning">
+          <div class="status-item">
+            <span class="status-label">⚠️ Public Access:</span>
+            <span class="status-value warning">Local Only</span>
+          </div>
+          <p style="color: #666; font-size: 14px; margin-top: 10px">
+            Server is only accessible locally. Install ngrok for public access.
+          </p>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="actions">
+        <a href="/" class="btn">📤 Upload Page</a>
+        <a href="/jobs" class="btn secondary">📋 View Jobs</a>
+        <button onclick="location.reload()" class="btn secondary">
+          🔄 Refresh
+        </button>
+      </div>
+    </div>
+
+    <script>
+      // Auto-refresh every 30 seconds
+      setTimeout(() => {
+        location.reload();
+      }, 30000);
+
+      // Add refresh animation
+      document.addEventListener("DOMContentLoaded", function () {
+        const statusCards = document.querySelectorAll(".status-card");
+        statusCards.forEach((card, index) => {
+          setTimeout(() => {
+            card.style.opacity = "0";
+            card.style.transform = "translateY(20px)";
+            card.style.transition = "all 0.5s ease";
+
+            setTimeout(() => {
+              card.style.opacity = "1";
+              card.style.transform = "translateY(0)";
+            }, 100);
+          }, index * 200);
+        });
+      });
+    </script>
+  </body>
+</html>

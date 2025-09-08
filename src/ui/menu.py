@@ -7,6 +7,8 @@ This module provides a clean, user-friendly interface for:
 """
 
 import os
+import subprocess
+import sys
 import threading
 import time
 import tkinter as tk
@@ -16,6 +18,12 @@ from typing import Callable, Optional
 
 import cv2
 import numpy as np
+
+# Import requests for API calls
+try:
+    import requests
+except ImportError:
+    requests = None
 from PIL import Image, ImageTk
 
 from aruco_detector import ArUcoDetector
@@ -830,6 +838,24 @@ class KrathongScannerUI:
         )
         auto_dir_btn.grid(row=2, column=0, padx=10, pady=10, sticky=(tk.W, tk.E))
 
+        # Web server button
+        web_server_btn = ttk.Button(
+            button_frame,
+            text="🌐 Start Web Server",
+            style="Large.TButton",
+            command=self.start_web_server,
+        )
+        web_server_btn.grid(row=3, column=0, padx=10, pady=10, sticky=(tk.W, tk.E))
+
+        # QR Link button
+        qr_link_btn = ttk.Button(
+            button_frame,
+            text="📱 Generate QR Link",
+            style="Large.TButton",
+            command=self.generate_qr_link,
+        )
+        qr_link_btn.grid(row=4, column=0, padx=10, pady=10, sticky=(tk.W, tk.E))
+
         # Configure button frame
         button_frame.columnconfigure(0, weight=1)
 
@@ -1128,6 +1154,446 @@ class KrathongScannerUI:
             messagebox.showerror(
                 "Error", f"Error starting auto-directory monitor: {str(e)}"
             )
+
+    def generate_qr_link(self):
+        """Generate QR code for public tunnel link."""
+        try:
+            self.show_status("Checking for LocalTunnel connection...")
+
+            # Check if LocalTunnel is running
+            tunnel_url = self.detect_tunnel_url()
+
+            if tunnel_url:
+                # Generate QR code
+                qr_file = self.create_qr_code(tunnel_url)
+                if qr_file:
+                    # Show success dialog with options
+                    result = messagebox.askyesno(
+                        "QR Code Generated",
+                        f"QR code generated successfully!\n\n"
+                        f"Public URL: {tunnel_url}\n"
+                        f"QR file: {qr_file}\n\n"
+                        f"Would you like to open the QR code file?",
+                        icon="question",
+                    )
+
+                    if result:
+                        # Open QR code file
+                        try:
+                            if os.name == "nt":  # Windows
+                                os.startfile(qr_file)
+                            else:  # macOS/Linux
+                                subprocess.run(
+                                    [
+                                        "open"
+                                        if sys.platform == "darwin"
+                                        else "xdg-open",
+                                        qr_file,
+                                    ]
+                                )
+                        except Exception as e:
+                            messagebox.showwarning(
+                                "Warning", f"Could not open file automatically: {e}"
+                            )
+
+                    self.show_status(f"QR code ready: {tunnel_url}")
+                else:
+                    messagebox.showerror("Error", "Failed to generate QR code")
+                    self.show_status("QR generation failed")
+            else:
+                # LocalTunnel not detected, offer to start it
+                result = messagebox.askyesno(
+                    "LocalTunnel Not Found",
+                    "No LocalTunnel connection detected.\n\n"
+                    "LocalTunnel is required for public QR links.\n"
+                    "Would you like to learn how to start it?",
+                    icon="question",
+                )
+
+                if result:
+                    self.show_tunnel_instructions()
+
+                self.show_status("LocalTunnel required for QR generation")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"QR Link generation error: {str(e)}")
+            self.show_status("QR generation error")
+
+    def detect_tunnel_url(self):
+        """Detect active LocalTunnel URL or start web server with tunnel."""
+        try:
+            # First, check if web server is already running locally
+            try:
+                import requests
+
+                response = requests.get("http://localhost:5000", timeout=2)
+                if response.status_code == 200:
+                    print("🌐 Local web server is running")
+
+                    # Try to get tunnel URL from server status endpoint
+                    try:
+                        status_response = requests.get(
+                            "http://localhost:5000/api/status", timeout=2
+                        )
+                        if status_response.status_code == 200:
+                            status_data = status_response.json()
+                            public_url = status_data.get("public_url")
+                            if public_url:
+                                print(f"✅ Found tunnel URL from server: {public_url}")
+                                return public_url
+                    except:
+                        pass
+
+            except requests.exceptions.RequestException:
+                print("🔄 Web server not running, will start it")
+                pass
+
+            # If no web server or no tunnel URL, start the web server with LocalTunnel
+            print("🚀 Starting web server with LocalTunnel...")
+            return self.start_web_server_with_tunnel()
+
+        except Exception as e:
+            print(f"❌ Tunnel detection error: {e}")
+            return None
+
+    def start_web_server_with_tunnel(self):
+        """Start the web server with LocalTunnel support."""
+        try:
+            # Import and start the web server
+            from pathlib import Path
+
+            # Add web directory to path
+            web_path = Path(__file__).parent.parent.parent / "web"
+            sys.path.insert(0, str(web_path))
+
+            # Import server
+            import server
+
+            # Setup the server with the current output directory
+            server.RESULTS_FOLDER = str(self.output_directory)
+            server.setup_auto_detector()
+
+            # Start LocalTunnel
+            print("🚇 Starting LocalTunnel...")
+            public_url = server.start_localtunnel(5000)
+
+            if public_url:
+                print(f"✅ LocalTunnel started: {public_url}")
+
+                # Start the Flask server in a background thread
+                def run_server():
+                    try:
+                        server.app.run(
+                            host="0.0.0.0", port=5000, debug=False, use_reloader=False
+                        )
+                    except Exception as e:
+                        print(f"Server error: {e}")
+
+                server_thread = threading.Thread(target=run_server, daemon=True)
+                server_thread.start()
+
+                # Wait a moment for server to start
+                time.sleep(2)
+
+                return public_url
+            else:
+                print("⚠️ LocalTunnel failed to start")
+
+                # Try without tunnel - just local network
+                def run_server():
+                    try:
+                        server.app.run(
+                            host="0.0.0.0", port=5000, debug=False, use_reloader=False
+                        )
+                    except Exception as e:
+                        print(f"Server error: {e}")
+
+                server_thread = threading.Thread(target=run_server, daemon=True)
+                server_thread.start()
+                time.sleep(2)
+
+                # Return local network URL
+                return "http://10.11.0.39:5000"
+
+        except Exception as e:
+            print(f"❌ Server start error: {e}")
+            return None
+
+    def basic_tunnel_detection(self):
+        """Basic tunnel detection fallback."""
+        try:
+            result = subprocess.run(
+                ["npx", "localtunnel", "--port", "5000", "--bypass-tunnel-reminder"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+
+            if result.returncode == 0 and "your url is:" in result.stdout:
+                import re
+
+                url_match = re.search(r"https://[^\s]+\.loca\.lt", result.stdout)
+                if url_match:
+                    return url_match.group(0)
+
+            return None
+
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return None
+
+    def show_nodejs_installation_dialog(self):
+        """Show Node.js installation dialog with options."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Node.js Required")
+        dialog.geometry("500x400")
+        dialog.resizable(False, False)
+
+        # Center the dialog
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # Main frame
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Title
+        title_label = ttk.Label(
+            main_frame,
+            text="Node.js Required for QR Links",
+            font=("Segoe UI", 14, "bold"),
+        )
+        title_label.pack(pady=(0, 20))
+
+        # Explanation
+        explanation = (
+            "The QR Link feature requires Node.js and LocalTunnel to create "
+            "public URLs that work from anywhere.\n\n"
+            "Node.js is not detected on your system."
+        )
+        explanation_label = ttk.Label(main_frame, text=explanation, wraplength=450)
+        explanation_label.pack(pady=(0, 20))
+
+        # Options frame
+        options_frame = ttk.LabelFrame(
+            main_frame, text="Installation Options", padding="10"
+        )
+        options_frame.pack(fill=tk.X, pady=(0, 20))
+
+        # Option 1: Download Node.js
+        option1_btn = ttk.Button(
+            options_frame,
+            text="📥 Download Node.js (Recommended)",
+            command=lambda: self.open_nodejs_download(),
+            width=40,
+        )
+        option1_btn.pack(pady=5)
+
+        # Option 2: Alternative instructions
+        option2_btn = ttk.Button(
+            options_frame,
+            text="📋 Show Manual Installation Steps",
+            command=lambda: self.show_manual_install_steps(),
+            width=40,
+        )
+        option2_btn.pack(pady=5)
+
+        # Option 3: Use local network only
+        option3_btn = ttk.Button(
+            options_frame,
+            text="🏠 Use Local Network Only",
+            command=lambda: self.show_local_network_info(),
+            width=40,
+        )
+        option3_btn.pack(pady=5)
+
+        # Close button
+        close_btn = ttk.Button(main_frame, text="Close", command=dialog.destroy)
+        close_btn.pack(pady=(10, 0))
+
+    def open_nodejs_download(self):
+        """Open Node.js download page."""
+        import webbrowser
+
+        try:
+            webbrowser.open("https://nodejs.org/en/download/")
+            messagebox.showinfo(
+                "Node.js Download",
+                "Node.js download page opened in your browser.\n\n"
+                "After installation:\n"
+                "1. Restart KrathongScanner\n"
+                "2. Try 'Generate QR Link' again",
+            )
+        except Exception:
+            messagebox.showinfo(
+                "Manual Download",
+                "Please visit: https://nodejs.org/en/download/\n"
+                "Download and install Node.js, then restart KrathongScanner.",
+            )
+
+    def show_manual_install_steps(self):
+        """Show manual installation steps."""
+        steps = (
+            "Manual Installation Steps:\n\n"
+            "1. Visit: https://nodejs.org/en/download/\n"
+            "2. Download the LTS version for Windows\n"
+            "3. Run the installer with default settings\n"
+            "4. Restart your computer\n"
+            "5. Restart KrathongScanner\n"
+            "6. Try 'Generate QR Link' again\n\n"
+            "Node.js includes NPM and LocalTunnel capability."
+        )
+        messagebox.showinfo("Installation Steps", steps)
+
+    def show_local_network_info(self):
+        """Show local network alternative."""
+        info = (
+            "Local Network Alternative:\n\n"
+            "Without Node.js, you can still use the web server locally:\n\n"
+            "1. Click 'Start Web Server'\n"
+            "2. Connect your phone to the same Wi-Fi\n"
+            "3. Visit: http://10.11.0.39:5000\n\n"
+            "Note: This only works on the same network, not from anywhere."
+        )
+        messagebox.showinfo("Local Network Option", info)
+
+    def create_qr_code(self, url):
+        """Create QR code for the given URL."""
+        try:
+            import qrcode
+
+            # Create high-quality QR code
+            qr = qrcode.QRCode(
+                version=2,
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+                box_size=12,
+                border=6,
+            )
+            qr.add_data(url)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            # Save QR code
+            qr_filename = f"qr_mall_link.png"
+            qr_filepath = os.path.join(self.output_directory, qr_filename)
+            img.save(qr_filepath)
+
+            return qr_filepath
+
+        except ImportError:
+            messagebox.showerror(
+                "Missing Dependency",
+                "QR code generation requires the 'qrcode' package.\n\n"
+                "Please install it with:\npip install qrcode[pil]",
+            )
+            return None
+        except Exception as e:
+            print(f"QR code generation error: {e}")
+            return None
+
+    def show_tunnel_instructions(self):
+        """Show instructions for starting LocalTunnel."""
+        instructions = (
+            "How to start LocalTunnel for public QR links:\n\n"
+            "1. Open a command prompt or terminal\n"
+            "2. Make sure Node.js is installed\n"
+            "3. Run: npx localtunnel --port 5000 --bypass-tunnel-reminder\n"
+            "4. Keep that terminal window open\n"
+            "5. Click 'Generate QR Link' again\n\n"
+            "The QR code will work from anywhere in the world!"
+        )
+        messagebox.showinfo("LocalTunnel Instructions", instructions)
+
+    def start_web_server(self):
+        """Handle web server mode."""
+        try:
+            # Confirm with user
+            result = messagebox.askyesno(
+                "Start Web Server",
+                f"Start KrathongScanner Web Server?\n\n"
+                f"📱 Mobile upload interface will be available at:\n"
+                f"   • Local: http://localhost:5000\n"
+                f"   • Network: http://[your-ip]:5000\n\n"
+                f"📁 Uploaded files will be processed automatically\n"
+                f"📤 Results will be saved to: {self.output_directory}\n\n"
+                f"🌐 Public access available if ngrok is installed\n\n"
+                f"Continue?",
+            )
+
+            if not result:
+                return
+
+            # Show status
+            self.show_status("Starting web server...")
+
+            # Start web server in background thread
+            thread = threading.Thread(
+                target=self.run_web_server_thread,
+                daemon=True,
+            )
+            thread.start()
+
+            # Show instruction dialog
+            messagebox.showinfo(
+                "Web Server Starting",
+                f"🚀 KrathongScanner Web Server is starting...\n\n"
+                f"📱 Access from mobile browser:\n"
+                f"   • http://localhost:5000 (local)\n"
+                f"   • http://[your-computer-ip]:5000 (network)\n\n"
+                f"✨ Features:\n"
+                f"   • Mobile-friendly upload interface\n"
+                f"   • Real-time processing progress\n"
+                f"   • Automatic file download\n"
+                f"   • QR code for easy mobile access\n\n"
+                f"📊 Check server status at: http://localhost:5000/status\n\n"
+                f"🛑 Close this application to stop the server.",
+            )
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error starting web server: {str(e)}")
+
+    def run_web_server_thread(self):
+        """Run the web server in a separate thread."""
+        try:
+            import sys
+            from pathlib import Path
+
+            # Add web directory to path
+            web_path = Path(__file__).parent.parent.parent / "web"
+            sys.path.insert(0, str(web_path))
+
+            # Import and run server
+            import server
+
+            # Update server output directory to match UI setting
+            server.RESULTS_FOLDER = str(self.output_directory)
+
+            # Setup auto detector
+            server.setup_auto_detector()
+
+            # Update status
+            self.show_status("Web server running on http://localhost:5000")
+
+            # Start LocalTunnel if available
+            public_url = server.start_localtunnel(5000)
+            if public_url:
+                self.show_status(f"Public URL: {public_url}")
+
+            # Start Flask server
+            server.app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
+
+        except ImportError as e:
+            error_msg = (
+                f"Web server dependencies not found: {e}\n\n"
+                f"Please install required packages:\n"
+                f"pip install flask werkzeug requests qrcode pillow"
+            )
+            messagebox.showerror("Missing Dependencies", error_msg)
+            self.show_status("Web server failed - missing dependencies")
+        except Exception as e:
+            error_msg = f"Web server error: {str(e)}"
+            messagebox.showerror("Web Server Error", error_msg)
+            self.show_status("Web server stopped due to error")
 
     def start_auto_directory_monitor(self, input_directory: str):
         """Start the auto-directory detector."""
