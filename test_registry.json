@@ -1,0 +1,35 @@
+{
+  "registry_info": {
+    "created": "2025-09-09T17:05:53.796898",
+    "last_updated": "2025-09-09T17:05:53.798662",
+    "total_templates": 2,
+    "next_available_id_set": [20, 21, 22, 23]
+  },
+  "templates": {
+    "festival_2025": {
+      "marker_ids": [0, 1, 2, 3],
+      "created_date": "2025-09-09T17:05:53.796898",
+      "client": "Festival Committee",
+      "status": "active",
+      "template_file_path": "",
+      "mask_file_path": "",
+      "image_settings": {}
+    },
+    "corporate_event": {
+      "marker_ids": [10, 11, 12, 13],
+      "created_date": "2025-09-09T17:05:53.798662",
+      "client": "Corp Ltd",
+      "status": "active",
+      "template_file_path": "",
+      "mask_file_path": "",
+      "image_settings": {}
+    }
+  },
+  "id_allocation": {
+    "used_combinations": [
+      [0, 1, 2, 3],
+      [10, 11, 12, 13]
+    ],
+    "next_id_sequence": 20
+  }
+}

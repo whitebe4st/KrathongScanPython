@@ -1,0 +1,45 @@
+{
+  "registry_info": {
+    "created": "2025-09-09T17:07:12.230933",
+    "last_updated": "2025-09-09T17:17:31.350906",
+    "total_templates": 2,
+    "next_available_id_set": [20, 21, 22, 23]
+  },
+  "templates": {
+    "test_template_registry": {
+      "marker_ids": [0, 1, 2, 3],
+      "created_date": "2025-09-09T17:07:12.240527",
+      "client": "Test Client",
+      "status": "active",
+      "template_file_path": "data\\templates\\test_template_registry.png",
+      "mask_file_path": "",
+      "image_settings": {
+        "scale": 0.8,
+        "offset_x": 0,
+        "offset_y": 0,
+        "has_image": false
+      }
+    },
+    "workflow_test_template": {
+      "marker_ids": [10, 11, 12, 13],
+      "created_date": "2025-09-09T17:17:31.349393",
+      "client": "TestClient123",
+      "status": "active",
+      "template_file_path": "data\\templates\\workflow_test_template.png",
+      "mask_file_path": "",
+      "image_settings": {
+        "scale": 0.8,
+        "offset_x": 0,
+        "offset_y": 0,
+        "has_image": false
+      }
+    }
+  },
+  "id_allocation": {
+    "used_combinations": [
+      [0, 1, 2, 3],
+      [10, 11, 12, 13]
+    ],
+    "next_id_sequence": 20
+  }
+}
