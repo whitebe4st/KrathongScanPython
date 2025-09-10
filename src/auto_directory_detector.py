@@ -5,6 +5,7 @@ This module monitors a directory for new krathong images and automatically proce
 using the same pipeline as the Import and Webcam modes.
 """
 
+import json
 import logging
 import sys
 import time
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Optional, Set
 
 import cv2
+import numpy as np
 
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -28,6 +30,7 @@ class AutoDirectoryDetector:
         output_directory: str,
         check_interval: float = 2.0,
         use_homography: bool = True,
+        use_rectangle_detection: bool = False,
         supported_extensions: tuple = (
             ".jpg",
             ".jpeg",
@@ -45,20 +48,25 @@ class AutoDirectoryDetector:
             output_directory: Directory to save processed images
             check_interval: Time in seconds between directory checks
             use_homography: Whether to use homography/perspective correction (default: True)
+            use_rectangle_detection: Whether to use rectangle detection instead of ArUco markers (default: False)
             supported_extensions: Tuple of supported image file extensions
         """
         self.input_directory = Path(input_directory)
         self.output_directory = Path(output_directory)
         self.check_interval = check_interval
         self.use_homography = use_homography
+        self.use_rectangle_detection = use_rectangle_detection
         self.supported_extensions = supported_extensions
 
         # Create directories if they don't exist
         self.input_directory.mkdir(parents=True, exist_ok=True)
         self.output_directory.mkdir(parents=True, exist_ok=True)
 
-        # Initialize detector
-        self.detector = ArUcoDetector()
+        # Initialize detector (only if not using rectangle detection)
+        if not self.use_rectangle_detection:
+            self.detector = ArUcoDetector()
+        else:
+            self.detector = None
 
         # Track processed files to avoid reprocessing
         self.processed_files: Set[str] = set()
@@ -128,6 +136,10 @@ class AutoDirectoryDetector:
 
     def get_mask_path(self, template_id: Optional[str] = None) -> Optional[str]:
         """Get the path to the template mask based on detected template."""
+        # If using rectangle detection, no mask is needed
+        if self.use_rectangle_detection:
+            return None
+
         # If we have a template ID, get the specific mask for that template
         if template_id:
             template_mask_path = self.detector.get_template_mask_path_for_template(
@@ -155,9 +167,175 @@ class AutoDirectoryDetector:
         self.logger.warning("No template mask found. Tried: " + ", ".join(mask_paths))
         return None
 
+    def find_rectangle_contour(self, image):
+        """Find any rectangular contour in the image (from scantest.py)"""
+        try:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+            # Try multiple edge detection approaches
+            threshold_pairs = [(50, 150), (75, 200), (30, 100), (100, 250)]
+
+            for low, high in threshold_pairs:
+                edged = cv2.Canny(blurred, low, high)
+
+                # Find contours
+                contours, _ = cv2.findContours(
+                    edged, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+                )
+                contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+                # Look for rectangular contours
+                for contour in contours:
+                    epsilon = 0.02 * cv2.arcLength(contour, True)
+                    approx = cv2.approxPolyDP(contour, epsilon, True)
+
+                    # Check if it's a rectangle with reasonable area
+                    if len(approx) == 4:
+                        area = cv2.contourArea(approx)
+                        if area > 5000:  # Minimum area threshold
+                            self.logger.info(f"Found rectangle with area: {area}")
+                            return approx
+
+            # If no rectangles found with edge detection, try adaptive threshold
+            adaptive = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+            )
+
+            contours, _ = cv2.findContours(
+                adaptive, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+            )
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+            for contour in contours:
+                epsilon = 0.02 * cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, epsilon, True)
+
+                if len(approx) == 4:
+                    area = cv2.contourArea(approx)
+                    if area > 5000:
+                        self.logger.info(
+                            f"Found rectangle (adaptive) with area: {area}"
+                        )
+                        return approx
+
+            self.logger.warning("No rectangular contours found")
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Error finding rectangle: {e}")
+            return None
+
+    def order_points(self, pts):
+        """Order points in the order: top-left, top-right, bottom-right, bottom-left (from scantest.py)"""
+        rect = np.zeros((4, 2), dtype="float32")
+
+        # Sum and difference to find corners
+        s = pts.sum(axis=1)
+        diff = np.diff(pts, axis=1)
+
+        rect[0] = pts[np.argmin(s)]  # top-left
+        rect[2] = pts[np.argmax(s)]  # bottom-right
+        rect[1] = pts[np.argmin(diff)]  # top-right
+        rect[3] = pts[np.argmax(diff)]  # bottom-left
+
+        return rect
+
+    def four_point_transform(self, image, pts):
+        """Apply perspective transformation to zoom into the rectangle (from scantest.py)"""
+        # Order the points
+        rect = self.order_points(pts)
+        (tl, tr, br, bl) = rect
+
+        # Calculate the width and height of the new image
+        widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+        widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+        maxWidth = max(int(widthA), int(widthB))
+
+        heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+        heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+        maxHeight = max(int(heightA), int(heightB))
+
+        # Define the destination points
+        dst = np.array(
+            [
+                [0, 0],
+                [maxWidth - 1, 0],
+                [maxWidth - 1, maxHeight - 1],
+                [0, maxHeight - 1],
+            ],
+            dtype="float32",
+        )
+
+        # Calculate the perspective transform matrix and apply it
+        M = cv2.getPerspectiveTransform(rect, dst)
+        warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+
+        return warped
+
+    def process_with_rectangle_detection(
+        self, image_path: Path, output_path: Path
+    ) -> bool:
+        """Process image using rectangle detection method from scantest.py"""
+        try:
+            # Load image
+            image = cv2.imread(str(image_path))
+            if image is None:
+                self.logger.error(f"Could not load image from {image_path}")
+                return False
+
+            # Find rectangular contour
+            contour = self.find_rectangle_contour(image)
+            if contour is None:
+                self.logger.warning(f"No rectangle found in {image_path.name}")
+                return False
+
+            # Apply perspective transformation to zoom into the rectangle
+            pts = contour.reshape(4, 2)
+            self.logger.info(f"Rectangle corners: {pts}")
+
+            # Apply perspective transform
+            warped = self.four_point_transform(image, pts)
+
+            # Save the processed image
+            success = cv2.imwrite(str(output_path), warped)
+            if not success:
+                self.logger.error(f"Failed to save processed image to {output_path}")
+                return False
+
+            # Calculate and log zoom info
+            original_area = image.shape[0] * image.shape[1]
+            rect_area = cv2.contourArea(contour)
+            zoom_factor = original_area / rect_area if rect_area > 0 else 1
+
+            self.logger.info(f"Rectangle processed! Zoom factor: {zoom_factor:.1f}x")
+
+            # Create metadata
+            metadata = {
+                "input_file": str(image_path),
+                "output_file": str(output_path),
+                "processed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "input_size": {"width": image.shape[1], "height": image.shape[0]},
+                "output_size": {"width": warped.shape[1], "height": warped.shape[0]},
+                "zoom_factor": float(zoom_factor),
+                "processing_mode": "rectangle-detection",
+                "detector_version": "1.0",
+            }
+
+            # Save metadata
+            metadata_path = output_path.with_suffix(".json")
+            with open(metadata_path, "w", encoding="utf-8") as f:
+                json.dump(metadata, f, indent=2)
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error processing {image_path.name}: {e}")
+            return False
+
     def process_image(self, image_path: Path) -> bool:
         """
-        Process a single image file using the same logic as import mode.
+        Process a single image file using rectangle detection or ArUco markers.
 
         Args:
             image_path: Path to the image to process
@@ -172,6 +350,11 @@ class AutoDirectoryDetector:
             output_filename = f"processed_{image_path.stem}.png"
             output_path = self.output_directory / output_filename
 
+            # Use rectangle detection if enabled
+            if self.use_rectangle_detection:
+                return self.process_with_rectangle_detection(image_path, output_path)
+
+            # Use ArUco marker detection (original method)
             # Load and process the image (same as import mode)
             image = cv2.imread(str(image_path))
             if image is None:
@@ -332,7 +515,8 @@ class AutoDirectoryDetector:
         if not self.input_directory.exists():
             raise ValueError(f"Input directory does not exist: {self.input_directory}")
 
-        if not self.get_mask_path():
+        # Check for mask only if not using rectangle detection
+        if not self.use_rectangle_detection and not self.get_mask_path():
             raise ValueError(
                 "No template mask found. Please ensure mask files are in data/markers/templates/"
             )
@@ -379,6 +563,7 @@ def run_auto_directory_detection(
     output_dir: str,
     check_interval: float = 2.0,
     use_homography: bool = True,
+    use_rectangle_detection: bool = False,
 ):
     """
     Convenience function to run auto-directory detection.
@@ -388,12 +573,14 @@ def run_auto_directory_detection(
         output_dir: Directory to save processed images
         check_interval: Time in seconds between directory checks
         use_homography: Whether to use homography/perspective correction
+        use_rectangle_detection: Whether to use rectangle detection instead of ArUco markers
     """
     detector = AutoDirectoryDetector(
         input_directory=input_dir,
         output_directory=output_dir,
         check_interval=check_interval,
         use_homography=use_homography,
+        use_rectangle_detection=use_rectangle_detection,
     )
 
     detector.run()

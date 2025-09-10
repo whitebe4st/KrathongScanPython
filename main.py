@@ -201,6 +201,11 @@ async def main():
         action="store_true",
         help="Disable homography/perspective correction",
     )
+    parser.add_argument(
+        "--use-rectangle-detection",
+        action="store_true",
+        help="Use rectangle detection instead of ArUco markers (auto-directory mode)",
+    )
 
     args = parser.parse_args()
 
@@ -259,10 +264,15 @@ async def main():
             logger.info(f"Output directory: {output_dir}")
             logger.info(f"Check interval: {args.check_interval} seconds")
             logger.info(f"Use homography: {use_homography}")
+            logger.info(f"Use rectangle detection: {args.use_rectangle_detection}")
 
             # Run auto-directory detection
             run_auto_directory_detection(
-                input_dir, output_dir, args.check_interval, use_homography
+                input_dir,
+                output_dir,
+                args.check_interval,
+                use_homography,
+                args.use_rectangle_detection,
             )
         elif args.mode == "web-server":
             logger.info("Running in web server mode")
