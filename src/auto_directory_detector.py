@@ -568,6 +568,10 @@ class AutoDirectoryDetector:
             True if processing was successful, False otherwise
         """
         try:
+            # Convert string to Path if needed
+            if isinstance(image_path, str):
+                image_path = Path(image_path)
+
             self.logger.info(f"Processing new image: {image_path.name}")
 
             # Generate output filename
@@ -640,6 +644,9 @@ class AutoDirectoryDetector:
                 return False
 
         except Exception as e:
+            # Convert string to Path if needed for error logging
+            if isinstance(image_path, str):
+                image_path = Path(image_path)
             self.logger.error(f"Error processing {image_path.name}: {e}")
             self.stats["files_failed"] += 1
             return False
@@ -820,7 +827,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--interval", type=float, default=2.0, help="Check interval in seconds"
     )
+    parser.add_argument(
+        "--use-rectangle-detection",
+        action="store_true",
+        help="Use rectangle detection instead of ArUco markers",
+    )
 
     args = parser.parse_args()
 
-    run_auto_directory_detection(args.input_dir, args.output_dir, args.interval)
+    run_auto_directory_detection(
+        args.input_dir,
+        args.output_dir,
+        args.interval,
+        use_rectangle_detection=getattr(args, "use_rectangle_detection", False),
+    )

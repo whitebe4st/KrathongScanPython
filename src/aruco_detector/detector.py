@@ -917,23 +917,117 @@ class ArUcoDetector:
         self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
     ) -> np.ndarray:
         """
-        Crop the area within the marker bounds without homography.
-        Extracts a rectangular area positioned at the marker tips.
+        Crop the area using ArUco markers as direct boundaries.
+        Uses the inner corners of ArUco markers to define the cropping rectangle.
 
         Args:
             image: Input image
             corner_markers: Dictionary of corner markers
 
         Returns:
-            Cropped image
+            Cropped image using ArUco marker boundaries
+        """
+        try:
+            # Get corner marker IDs for current template
+            corner_marker_ids = self.get_template_corner_markers()
+
+            # Extract the inner corners of each ArUco marker
+            # Each marker has 4 corners, we want the inner corner that faces the content
+            crop_points = []
+
+            for i, marker_id in enumerate(corner_marker_ids):
+                if marker_id in corner_markers:
+                    corners = corner_markers[
+                        marker_id
+                    ].corners  # Get the 4 corners directly
+
+                    # Debug: log corner structure
+                    self.logger.info(
+                        f"Marker {marker_id} corners shape: {corners.shape}"
+                    )
+                    self.logger.info(f"Marker {marker_id} corners: {corners}")
+
+                    # ArUco corners are ordered: top-left, top-right, bottom-right, bottom-left
+                    # We need to select the inner corner based on the marker's position
+
+                    if i == 0:  # First marker in template (top-left position)
+                        # Inner corner is bottom-right of the marker
+                        inner_corner = corners[2]  # Bottom-right corner of marker
+                    elif i == 1:  # Second marker in template (top-right position)
+                        # Inner corner is bottom-left of the marker
+                        inner_corner = corners[3]  # Bottom-left corner of marker
+                    elif i == 2:  # Third marker in template (bottom-left position)
+                        # Inner corner is top-right of the marker
+                        inner_corner = corners[1]  # Top-right corner of marker
+                    elif i == 3:  # Fourth marker in template (bottom-right position)
+                        # Inner corner is top-left of the marker
+                        inner_corner = corners[0]  # Top-left corner of marker
+                    else:
+                        # Fallback to using marker center
+                        inner_corner = np.array(
+                            [
+                                corner_markers[marker_id].center[0],
+                                corner_markers[marker_id].center[1],
+                            ]
+                        )
+
+                    crop_points.append(inner_corner)
+                    self.logger.info(
+                        f"Marker {marker_id} position {i} inner corner: {inner_corner}"
+                    )
+
+            if len(crop_points) != 4:
+                self.logger.warning(
+                    f"Not all 4 corner markers found, using center-based cropping"
+                )
+                return self._crop_marker_area_fallback(image, corner_markers)
+
+            # Convert to numpy array
+            crop_points = np.array(crop_points, dtype=np.float32)
+
+            # Calculate bounding rectangle from the inner corners
+            x_coords = crop_points[:, 0]
+            y_coords = crop_points[:, 1]
+
+            crop_x_min = int(np.min(x_coords))
+            crop_y_min = int(np.min(y_coords))
+            crop_x_max = int(np.max(x_coords))
+            crop_y_max = int(np.max(y_coords))
+
+            # Ensure crop is within image bounds
+            img_height, img_width = image.shape[:2]
+            crop_x_min = max(0, crop_x_min)
+            crop_y_min = max(0, crop_y_min)
+            crop_x_max = min(img_width, crop_x_max)
+            crop_y_max = min(img_height, crop_y_max)
+
+            # Crop the image using ArUco marker boundaries
+            cropped = image[crop_y_min:crop_y_max, crop_x_min:crop_x_max]
+
+            crop_width = crop_x_max - crop_x_min
+            crop_height = crop_y_max - crop_y_min
+
+            self.logger.info(
+                f"ArUco boundary crop: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_width}x{crop_height})"
+            )
+
+            return cropped
+
+        except Exception as e:
+            self.logger.error(f"Error cropping with ArUco boundaries: {e}")
+            return self._crop_marker_area_fallback(image, corner_markers)
+
+    def _crop_marker_area_fallback(
+        self, image: np.ndarray, corner_markers: Dict[int, "MarkerData"]
+    ) -> np.ndarray:
+        """
+        Fallback cropping method using marker centers.
         """
         try:
             # Get all marker centers (template-aware)
             centers = []
             corner_marker_ids = self.get_template_corner_markers()
-            for (
-                marker_id
-            ) in corner_marker_ids:  # Top-left, top-right, bottom-left, bottom-right
+            for marker_id in corner_marker_ids:
                 if marker_id in corner_markers:
                     center = corner_markers[marker_id].center
                     centers.append([center[0], center[1]])
@@ -991,15 +1085,15 @@ class ArUcoDetector:
             cropped = image[crop_y_min:crop_y_max, crop_x_min:crop_x_max]
 
             self.logger.info(
-                f"Marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
+                f"Fallback marker area: {x_min},{y_min} to {x_max},{y_max} ({marker_width}x{marker_height})"
             )
             self.logger.info(
-                f"Crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
+                f"Fallback crop area: {crop_x_min},{crop_y_min} to {crop_x_max},{crop_y_max} ({crop_x_max-crop_x_min}x{crop_y_max-crop_y_min})"
             )
             return cropped
 
         except Exception as e:
-            self.logger.error(f"Error cropping marker area: {e}")
+            self.logger.error(f"Error in fallback cropping: {e}")
             return image
 
     def _apply_homography_correction(

@@ -22,6 +22,7 @@ from werkzeug.utils import secure_filename
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), "src"))
 
 from auto_directory_detector import AutoDirectoryDetector
+from enhanced_auto_directory_detector import EnhancedAutoDirectoryDetector
 from tunneling.bundled_instatunnel import (
     get_bundled_tunnel_url,
     is_bundled_tunnel_available,
@@ -30,6 +31,13 @@ from tunneling.bundled_instatunnel import (
     stop_bundled_tunnel,
     test_bundled_tunnel_connection,
 )
+
+# Ensure console can print Unicode on Windows (avoid cp1252 errors)
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "krathong-scanner-2024"
@@ -129,6 +137,8 @@ class ProcessingJob:
         self.filename = filename
         self.status = "pending"
         self.result_file = None
+        self.cropped_file = None
+        self.masked_file = None
         self.error_message = None
         self.created_at = datetime.now()
 
@@ -230,11 +240,24 @@ def setup_auto_detector():
     global auto_detector, auto_detector_thread, stop_monitoring
 
     if auto_detector is None:
-        auto_detector = AutoDirectoryDetector(
-            input_directory=UPLOAD_FOLDER,
-            output_directory=RESULTS_FOLDER,
-            use_homography=True,
-        )
+        # Prefer enhanced pipeline: detect paper -> detect aruco -> apply mask
+        try:
+            auto_detector = EnhancedAutoDirectoryDetector(
+                input_directory=UPLOAD_FOLDER,
+                output_directory=RESULTS_FOLDER,
+                check_interval=2.0,
+                use_document_detection=True,
+            )
+            print("✅ Enhanced auto-directory detector initialized")
+        except Exception as e:
+            print(
+                f"⚠️ Enhanced detector unavailable ({e}), falling back to legacy detector"
+            )
+            auto_detector = AutoDirectoryDetector(
+                input_directory=UPLOAD_FOLDER,
+                output_directory=RESULTS_FOLDER,
+                use_homography=True,
+            )
 
         # Start monitoring in a separate thread
         stop_monitoring = False
@@ -266,6 +289,7 @@ def process_uploaded_file(job_id, filepath):
 
         from aruco_detector.detector import ArUcoDetector
         from paper_detector import PaperDetector
+        from src.enhanced_rectangle_cropper import detect_and_crop_rectangle_enhanced
 
         # Initialize detectors
         detector = ArUcoDetector()
@@ -281,56 +305,129 @@ def process_uploaded_file(job_id, filepath):
             print(f"❌ Could not load image: {filepath}")
             return
 
-        # First, detect and crop to paper boundary (like webcam mode)
-        processing_image, paper_detected = paper_detector.process_with_auto_zoom(image)
-        if paper_detected:
-            print(f"📄 Paper detected and cropped for {job.filename}")
+        # 1) First try paper detection to get perspective-corrected document
+        processing_image, paper_ok = paper_detector.process_with_auto_zoom(image)
+        if paper_ok:
+            print(f"� Paper detector succeeded for {job.filename}")
         else:
-            print(f"⚠️ No paper detected for {job.filename}, using full image")
+            print(f"⚠️ Paper detector failed; using original image for {job.filename}")
+            processing_image = image
 
-        # Detect markers
+        # 2) Try ArUco marker detection first (most precise for templates with markers)
         markers = detector.detect_markers(processing_image)
-        if not markers:
-            job.status = "error"
-            job.error_message = "No ArUco markers detected"
-            print(f"❌ No markers detected in {job.filename}")
-            return
+        marker_ids = [m.id for m in markers] if markers else []
+        template_id = detector.detect_template(marker_ids) if marker_ids else None
 
-        # Get template info
-        marker_ids = [marker.id for marker in markers]
-        template_id = detector.detect_template(marker_ids)
+        if markers and template_id:
+            print(f"🎯 Found ArUco template: {template_id}")
+            corner_markers = detector.get_corner_markers(markers)
+            if corner_markers is not None:
+                print("🎯 Using ArUco-based cropping")
+                cropped = detector._apply_homography_and_crop(
+                    processing_image, corner_markers
+                )
+            else:
+                job.status = "error"
+                job.error_message = "Could not find all corner markers"
+                print(f"❌ Missing corner markers in {job.filename}")
+                return
+        else:
+            print("🔍 No ArUco markers found, trying rectangle detection...")
+            # 3) Fallback to rectangle detection for non-ArUco templates
+            rect_cropped, rect_contour = detect_and_crop_rectangle_enhanced(
+                processing_image
+            )
+            if rect_cropped is not None:
+                print("🟩 Rectangle area detected; using rectangle-cropped image")
+                cropped = rect_cropped
+                # Normalize to target canvas to align with template masks
+                try:
+                    TARGET_W, TARGET_H = 779, 457
+                    if cropped.shape[1] != TARGET_W or cropped.shape[0] != TARGET_H:
+                        cropped = cv2.resize(
+                            cropped,
+                            (TARGET_W, TARGET_H),
+                            interpolation=cv2.INTER_LANCZOS4,
+                        )
+                        print(
+                            f"📏 Resized rectangle crop to {TARGET_W}x{TARGET_H} for mask alignment"
+                        )
+                except Exception as _e:
+                    pass
+                # Re-detect on cropped image for template identification
+                markers = detector.detect_markers(cropped)
+                marker_ids = [m.id for m in markers] if markers else []
+                template_id = (
+                    detector.detect_template(marker_ids) if marker_ids else None
+                )
+            else:
+                print("❌ Rectangle detection also failed")
+                job.status = "error"
+                job.error_message = (
+                    "Could not detect document boundary or ArUco markers"
+                )
+                print(f"❌ No detection method succeeded for {job.filename}")
+                return
 
-        # Get corner markers
-        corner_markers = detector.get_corner_markers(markers)
-        if corner_markers is None:
-            job.status = "error"
-            job.error_message = "Could not find all corner markers"
-            print(f"❌ Missing corner markers in {job.filename}")
-            return
+        # Get template mask path (mask1-4_final.png mapping)
+        template_mask_path = None
+        try:
+            template_mask_path = detector.get_template_mask_path()
+        except Exception:
+            pass
 
-        # Apply homography correction and cropping
-        cropped = detector._apply_homography_and_crop(processing_image, corner_markers)
+        if not template_mask_path and template_id:
+            import re
 
-        # Get template mask path
-        template_mask_path = detector.get_template_mask_path()
+            m = re.search(r"(\d+)$", template_id)
+            num = m.group(1) if m else None
+            if num:
+                for candidate in [
+                    f"data/markers/templates/mask{num}_final.png",
+                    f"data/markers/templates/mask{num}.png",
+                    f"data/templates/mask{num}_final.png",
+                    f"data/templates/mask{num}.png",
+                ]:
+                    if os.path.exists(candidate):
+                        template_mask_path = candidate
+                        break
 
         if template_mask_path:
-            # Apply template mask
+            # Apply template mask and keep full 779x457 canvas (match webcam behavior)
             masked = detector.apply_template_mask(cropped, template_mask_path)
-            processed_image = detector._crop_masked_area(masked)
+            processed_image = masked
         else:
             print("⚠️ No template mask available, using cropped image")
+            masked = None
             processed_image = cropped
 
         # Save the processed image
         filename_base = os.path.splitext(job.filename)[0]
         result_filename = f"processed_{filename_base}.png"
+        cropped_filename = f"processed_{filename_base}_cropped.png"
+        masked_filename = f"processed_{filename_base}_masked.png"
         result_path = os.path.join(RESULTS_FOLDER, result_filename)
+        cropped_path = os.path.join(RESULTS_FOLDER, cropped_filename)
+        masked_path = os.path.join(RESULTS_FOLDER, masked_filename)
 
         print(f"🔧 Saving to: {result_path}")
         print(f"🔧 Results folder: {RESULTS_FOLDER}")
         print(f"🔧 Image shape: {processed_image.shape}")
         print(f"🔧 Image dtype: {processed_image.dtype}")
+
+        # Save intermediate previews for debugging
+        try:
+            cv2.imwrite(cropped_path, cropped)
+            job.cropped_file = cropped_filename
+        except Exception:
+            pass
+
+        if masked is not None:
+            try:
+                cv2.imwrite(masked_path, masked)
+                job.masked_file = masked_filename
+            except Exception:
+                pass
 
         success = cv2.imwrite(result_path, processed_image)
 
@@ -441,6 +538,14 @@ def check_status(job_id):
     if job.status == "completed" and job.result_file:
         response["download_url"] = url_for("download_result", filename=job.result_file)
         response["preview_url"] = url_for("preview_result", filename=job.result_file)
+        if job.cropped_file:
+            response["preview_cropped_url"] = url_for(
+                "preview_result", filename=job.cropped_file
+            )
+        if job.masked_file:
+            response["preview_masked_url"] = url_for(
+                "preview_result", filename=job.masked_file
+            )
 
     if job.status == "error" and job.error_message:
         response["error"] = job.error_message

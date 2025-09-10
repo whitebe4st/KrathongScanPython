@@ -227,6 +227,19 @@
         margin-bottom: 15px;
       }
 
+      .preview-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .thumb-title {
+        font-size: 12px;
+        color: #555;
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+
       .download-btn {
         background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
         color: white;
@@ -393,10 +406,20 @@
 
         <div class="result-area" id="resultArea">
           <div class="status-text status-completed">ประมวลผลเสร็จสิ้น!</div>
-          <img id="resultImage" class="result-image" alt="Result" />
-          <!-- <a id="downloadBtn" class="download-btn" href="#" download>
-            📥 ดาวน์โหลดผลลัพธ์
-          </a> -->
+          <div class="preview-grid">
+            <div>
+              <div class="thumb-title">Full photo</div>
+              <img id="resultFull" class="result-image" alt="Full" />
+            </div>
+            <div>
+              <div class="thumb-title">Cropped</div>
+              <img id="resultCropped" class="result-image" alt="Cropped" />
+            </div>
+            <div>
+              <div class="thumb-title">Mask applied</div>
+              <img id="resultMasked" class="result-image" alt="Masked" />
+            </div>
+          </div>
           <button type="button" class="new-upload-btn" onclick="resetForm()">
             อัปโหลดรูปใหม่
           </button>
@@ -718,7 +741,12 @@
               updateStatus("ประมวลผลเสร็จสิ้น!", "completed");
               console.log("Preview URL from status:", status.preview_url);
               console.log("Download URL from status:", status.download_url);
-              showResult(status.preview_url, status.download_url);
+              showResult(
+                status.preview_url,
+                status.download_url,
+                status.preview_cropped_url,
+                status.preview_masked_url,
+              );
               return;
             } else if (status.status === "error") {
               throw new Error(status.error || "เกิดข้อผิดพลาดในการประมวลผล");
@@ -756,7 +784,7 @@
         }
       }
 
-      function showResult(previewUrl, downloadUrl) {
+      function showResult(previewUrl, downloadUrl, croppedUrl, maskedUrl) {
         console.log("Processing completed");
         console.log("Preview URL:", previewUrl);
         console.log("Download URL:", downloadUrl);
@@ -764,16 +792,13 @@
         document.getElementById("progressFill").style.width = "100%";
 
         setTimeout(() => {
-          // Show the result image
-          const resultImage = document.getElementById("resultImage");
-          resultImage.src = previewUrl;
-          resultImage.onload = function () {
-            console.log("✅ Result image loaded successfully");
-          };
-          resultImage.onerror = function () {
-            console.error("❌ Failed to load result image:", previewUrl);
-            resultImage.alt = "ไม่สามารถโหลดรูปผลลัพธ์ได้";
-          };
+          // Set the three previews
+          const full = document.getElementById("resultFull");
+          const cropped = document.getElementById("resultCropped");
+          const masked = document.getElementById("resultMasked");
+          if (full) full.src = previewUrl;
+          if (cropped && croppedUrl) cropped.src = croppedUrl;
+          if (masked && maskedUrl) masked.src = maskedUrl;
 
           // document.getElementById("downloadBtn").href = downloadUrl;
 
