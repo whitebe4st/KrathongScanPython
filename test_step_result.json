@@ -1,0 +1,38 @@
+{
+  "input_image": "webcam_frame",
+  "mask_path": "data\\markers\\templates\\mask1_final.png",
+  "output_image": "test_step_result.png",
+  "detected_markers": 4,
+  "detected_marker_ids": [3, 1, 0, 2],
+  "template_detected": "krathong1",
+  "template_config": {
+    "name": "Traditional Krathong (Original)",
+    "description": "Classic traditional design",
+    "markers": [0, 1, 2, 3],
+    "mask_file": "mask1_final.png"
+  },
+  "corner_markers": {
+    "3": {
+      "id": 3,
+      "center": [3282.5, 2262.75]
+    },
+    "1": {
+      "id": 1,
+      "center": [3247.0, 580.5]
+    },
+    "0": {
+      "id": 0,
+      "center": [705.0, 589.75]
+    },
+    "2": {
+      "id": 2,
+      "center": [665.75, 2202.5]
+    }
+  },
+  "processing_timestamp": "1757504239.267777",
+  "detector_config": {
+    "dict_type": "4X4_50",
+    "marker_size": 0.04
+  },
+  "processing_method": "homography"
+}

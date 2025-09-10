@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🏮 KrathongScanner - ระบบรักษาความปลอดภัย</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .security-container {
+        max-width: 500px;
+        width: 100%;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+        animation: fadeInUp 0.6s ease-out;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .security-header {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+        color: white;
+        text-align: center;
+        padding: 40px 20px;
+      }
+
+      .security-header h1 {
+        font-size: 28px;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      .security-header p {
+        font-size: 16px;
+        opacity: 0.9;
+      }
+
+      .security-icon {
+        font-size: 60px;
+        margin-bottom: 20px;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.1);
+        }
+      }
+
+      .security-content {
+        padding: 40px 30px;
+        text-align: center;
+      }
+
+      .security-notice {
+        background: #e8f5e8;
+        border: 2px solid #4caf50;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 30px;
+      }
+
+      .security-notice h3 {
+        color: #2e7d32;
+        margin-bottom: 10px;
+        font-size: 18px;
+      }
+
+      .security-notice p {
+        color: #388e3c;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .password-container {
+        margin-bottom: 30px;
+      }
+
+      .password-container label {
+        display: block;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 16px;
+      }
+
+      .password-input {
+        width: 100%;
+        padding: 15px 20px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        font-size: 16px;
+        text-align: center;
+        font-weight: 600;
+        letter-spacing: 2px;
+        transition: all 0.3s ease;
+      }
+
+      .password-input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+      }
+
+      .access-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 15px 40px;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+        margin-bottom: 20px;
+      }
+
+      .access-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      .access-btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .error-message {
+        color: #e74c3c;
+        font-size: 14px;
+        margin-top: 10px;
+        display: none;
+      }
+
+      .info-section {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 20px;
+      }
+
+      .info-section h4 {
+        color: #495057;
+        margin-bottom: 10px;
+      }
+
+      .info-section ul {
+        list-style: none;
+        color: #6c757d;
+        font-size: 14px;
+      }
+
+      .info-section li {
+        margin-bottom: 5px;
+        padding-left: 20px;
+        position: relative;
+      }
+
+      .info-section li:before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: #28a745;
+        font-weight: bold;
+      }
+
+      .footer {
+        text-align: center;
+        padding: 20px;
+        background: #f8f9fa;
+        color: #6c757d;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="security-container">
+      <div class="security-header">
+        <div class="security-icon">🔐</div>
+        <h1>🏮 KrathongScanner</h1>
+        <p>ระบบรักษาความปลอดภัย - Security Gateway</p>
+      </div>
+
+      <div class="security-content">
+        <div class="security-notice">
+          <h3>🎨 ระบบสแกนงานศิลปะกระทงอย่างเป็นทางการ</h3>
+          <p>
+            นี่คือระบบประมวลผลรูปภาพกระทงสำหรับงานประกวดในห้างสรรพสินค้า<br />
+            ระบบปลอดภัย 100% - ไม่มีการเก็บข้อมูลส่วนบุคคล
+          </p>
+        </div>
+
+        <div class="password-container">
+          <label for="securityPassword"
+            >รหัสผ่านเข้าใช้งาน (Access Code):</label
+          >
+          <input
+            type="password"
+            id="securityPassword"
+            class="password-input"
+            placeholder="กรุณาใส่รหัสผ่าน"
+            maxlength="10"
+          />
+          <div id="errorMessage" class="error-message">
+            รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง
+          </div>
+        </div>
+
+        <button id="accessBtn" class="access-btn" onclick="checkPassword()">
+          🚀 เข้าสู่ระบบสแกนกระทง
+        </button>
+
+        <div class="info-section">
+          <h4>📋 ข้อมูลระบบ:</h4>
+          <ul>
+            <li>ระบบสแกนและประมวลผลรูปภาพกระทงอัตโนมัติ</li>
+            <li>รองรับไฟล์ JPG, PNG, GIF, BMP</li>
+            <li>ประมวลผลด้วย AI และ Computer Vision</li>
+            <li>ผลลัพธ์พร้อมดาวน์โหลดทันที</li>
+            <li>ข้อมูลจะถูกลบอัตโนมัติหลังใช้งาน</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer">
+        🔒 ระบบนี้ได้รับการรักษาความปลอดภัยด้วยมาตรฐาน SSL/TLS<br />
+        🚀 Powered by KrathongScanner v2.0 | Made with ❤️ for Art Processing
+      </div>
+    </div>
+
+    <script>
+      // Set your custom password here
+      const CORRECT_PASSWORD = "KRATHONG2024";
+
+      // Alternative passwords for different access levels
+      const PASSWORDS = {
+        KRATHONG2024: "main", // Main access
+        ADMIN123: "main", // Admin access
+        MALL2024: "main", // Mall staff access
+        SCANNER: "main", // General scanner access
+        DEMO: "main", // Demo access
+      };
+
+      function checkPassword() {
+        const password = document
+          .getElementById("securityPassword")
+          .value.toUpperCase();
+        const errorDiv = document.getElementById("errorMessage");
+        const accessBtn = document.getElementById("accessBtn");
+
+        if (PASSWORDS[password]) {
+          // Success animation
+          accessBtn.innerHTML = "✅ กำลังเข้าสู่ระบบ...";
+          accessBtn.disabled = true;
+          errorDiv.style.display = "none";
+
+          // Store access token
+          sessionStorage.setItem("krathongAccess", "granted");
+          sessionStorage.setItem("accessTime", Date.now());
+
+          // Redirect to main application
+          setTimeout(() => {
+            window.location.href = "/main";
+          }, 1500);
+        } else {
+          // Error animation
+          errorDiv.style.display = "block";
+          document.getElementById("securityPassword").style.borderColor =
+            "#e74c3c";
+          document.getElementById("securityPassword").value = "";
+
+          // Reset border color after animation
+          setTimeout(() => {
+            document.getElementById("securityPassword").style.borderColor =
+              "#ddd";
+          }, 2000);
+        }
+      }
+
+      // Allow Enter key to submit
+      document
+        .getElementById("securityPassword")
+        .addEventListener("keypress", function (e) {
+          if (e.key === "Enter") {
+            checkPassword();
+          }
+        });
+
+      // Auto-focus password input
+      document.getElementById("securityPassword").focus();
+
+      // Check if already authenticated
+      window.addEventListener("load", function () {
+        const access = sessionStorage.getItem("krathongAccess");
+        const accessTime = sessionStorage.getItem("accessTime");
+
+        // Check if access is still valid (24 hours)
+        if (access === "granted" && accessTime) {
+          const timeDiff = Date.now() - parseInt(accessTime);
+          if (timeDiff < 24 * 60 * 60 * 1000) {
+            // 24 hours
+            window.location.href = "/main";
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

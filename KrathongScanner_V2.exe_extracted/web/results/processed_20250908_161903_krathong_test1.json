@@ -1,0 +1,11 @@
+{
+  "input_file": "G:\\MotionSix\\KrathongScanner\\web\\uploads\\20250908_161903_krathong_test1.png",
+  "output_file": "G:\\MotionSix\\KrathongScanner\\web\\results\\processed_20250908_161903_krathong_test1.png",
+  "processed_at": "2025-09-09 12:28:19",
+  "input_size": {
+    "width": 1280,
+    "height": 720
+  },
+  "processing_mode": "auto-directory",
+  "detector_version": "1.0"
+}

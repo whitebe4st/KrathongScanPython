@@ -1,9 +1,9 @@
 {
   "registry_info": {
     "created": "2025-09-09T17:07:12.230933",
-    "last_updated": "2025-09-09T21:37:59.812544",
-    "total_templates": 3,
-    "next_available_id_set": [30, 31, 32, 33]
+    "last_updated": "2025-09-10T11:02:37.965470",
+    "total_templates": 5,
+    "next_available_id_set": [50, 51, 52, 53]
   },
   "templates": {
     "test_template_registry": {
@@ -47,14 +47,44 @@
         "offset_y": 0,
         "has_image": false
       }
+    },
+    "ty_20250910": {
+      "marker_ids": [30, 31, 32, 33],
+      "created_date": "2025-09-10T11:02:28.972179",
+      "client": "ty",
+      "status": "active",
+      "template_file_path": "data\\templates\\ty_20250910.png",
+      "mask_file_path": "",
+      "image_settings": {
+        "scale": 0.8,
+        "offset_x": 0,
+        "offset_y": 0,
+        "has_image": false
+      }
+    },
+    "t_20250910": {
+      "marker_ids": [40, 41, 42, 43],
+      "created_date": "2025-09-10T11:02:37.965470",
+      "client": "t",
+      "status": "active",
+      "template_file_path": "data\\templates\\t_20250910.png",
+      "mask_file_path": "",
+      "image_settings": {
+        "scale": 0.8,
+        "offset_x": 0,
+        "offset_y": 0,
+        "has_image": false
+      }
     }
   },
   "id_allocation": {
     "used_combinations": [
       [0, 1, 2, 3],
       [10, 11, 12, 13],
-      [20, 21, 22, 23]
+      [20, 21, 22, 23],
+      [30, 31, 32, 33],
+      [40, 41, 42, 43]
     ],
-    "next_id_sequence": 30
+    "next_id_sequence": 50
   }
 }

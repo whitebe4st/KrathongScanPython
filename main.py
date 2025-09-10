@@ -20,6 +20,10 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from auto_directory_detector import run_auto_directory_detection
 from config.settings import config
+from database.models import TemplateData
+
+# Import new database components
+from database.registry import LocalTemplateRegistry
 from ui.menu import KrathongScannerUI
 from utils.logger import setup_logger
 from webcam_detector import WebcamDetector
@@ -94,7 +98,23 @@ def run_web_server(host="0.0.0.0", port=5000):
         # Initialize the auto detector
         server.setup_auto_detector()
 
-        # Start InstaTunnel for public access
+        logger.info(f"Upload folder: {server.UPLOAD_FOLDER}")
+        logger.info(f"Results folder: {server.RESULTS_FOLDER}")
+        logger.info("=" * 50)
+        logger.info("🎯 Web Server Ready! Upload images to process them automatically")
+        logger.info("=" * 50)
+
+        # Start Flask server in a separate thread
+        def start_flask_server():
+            server.app.run(host=host, port=port, debug=False, use_reloader=False)
+
+        flask_thread = threading.Thread(target=start_flask_server, daemon=True)
+        flask_thread.start()
+
+        # Wait a moment for Flask server to start
+        time.sleep(3)
+
+        # Now start InstaTunnel for public access
         logger.info("Starting InstaTunnel for public access...")
         public_url = server.start_instatunnel(port)
 
@@ -106,14 +126,12 @@ def run_web_server(host="0.0.0.0", port=5000):
         else:
             logger.warning("Server will only be available locally")
 
-        logger.info(f"Upload folder: {server.UPLOAD_FOLDER}")
-        logger.info(f"Results folder: {server.RESULTS_FOLDER}")
-        logger.info("=" * 50)
-        logger.info("🎯 Web Server Ready! Upload images to process them automatically")
-        logger.info("=" * 50)
-
-        # Start Flask server
-        server.app.run(host=host, port=port, debug=False, use_reloader=False)
+        # Keep the main thread alive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
 
     except ImportError as e:
         logger.error(f"Failed to import web server components: {e}")
@@ -244,7 +262,7 @@ async def main():
 
             # Run auto-directory detection
             run_auto_directory_detection(
-                input_dir, output_dir, args.check_interval, use_homography
+                input_dir, output_dir, args.check_interval, use_homography, True
             )
         elif args.mode == "web-server":
             logger.info("Running in web server mode")

@@ -1,0 +1,13 @@
+{
+  "input_file": "G:\\MotionSix\\KrathongScanner\\web\\uploads\\20250910_164435_3.png",
+  "output_file": "G:\\MotionSix\\KrathongScanner\\web\\results\\processed_20250910_164435_3.png",
+  "processed_at": "2025-09-10 18:07:32",
+  "input_size": {
+    "width": 1280,
+    "height": 720
+  },
+  "processing_mode": "auto-directory",
+  "detector_version": "1.0",
+  "paper_detection_enabled": false,
+  "homography_enabled": true
+}
