@@ -1,9 +1,9 @@
 {
   "registry_info": {
     "created": "2025-09-09T17:07:12.230933",
-    "last_updated": "2025-09-09T17:17:31.350906",
-    "total_templates": 2,
-    "next_available_id_set": [20, 21, 22, 23]
+    "last_updated": "2025-09-09T21:37:59.812544",
+    "total_templates": 3,
+    "next_available_id_set": [30, 31, 32, 33]
   },
   "templates": {
     "test_template_registry": {
@@ -33,13 +33,28 @@
         "offset_y": 0,
         "has_image": false
       }
+    },
+    "test123_20250909": {
+      "marker_ids": [20, 21, 22, 23],
+      "created_date": "2025-09-09T21:37:59.812544",
+      "client": "test123",
+      "status": "active",
+      "template_file_path": "data\\templates\\test123_20250909.png",
+      "mask_file_path": "",
+      "image_settings": {
+        "scale": 0.8,
+        "offset_x": 0,
+        "offset_y": 0,
+        "has_image": false
+      }
     }
   },
   "id_allocation": {
     "used_combinations": [
       [0, 1, 2, 3],
-      [10, 11, 12, 13]
+      [10, 11, 12, 13],
+      [20, 21, 22, 23]
     ],
-    "next_id_sequence": 20
+    "next_id_sequence": 30
   }
 }

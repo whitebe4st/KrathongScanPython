@@ -1,6 +1,6 @@
 {
-  "template_name": "test_template_registry",
-  "created_date": "2025-09-09T21:37:59.812544",
+  "template_name": "test123_20250909",
+  "created_date": "2025-09-09T17:17:31.350906",
   "template_size": {
     "width": 1280,
     "height": 720
@@ -14,7 +14,7 @@
   "aruco_markers": {
     "dictionary": "4X4_50",
     "marker_size": 100,
-    "ids": [30, 31, 32, 33]
+    "ids": [20, 21, 22, 23]
   },
   "image_settings": {
     "has_image": false,
