@@ -1,0 +1,22 @@
+{
+  "input_file": "data\\test_images\\download.jpg",
+  "output_file": "test_enhanced_output\\processed_download.png",
+  "processed_at": "2025-09-11 00:09:04",
+  "input_size": {
+    "width": 4032,
+    "height": 3024
+  },
+  "output_size": {
+    "width": 2268,
+    "height": 1333
+  },
+  "corners_detected": [
+    [3076, 731],
+    [866, 735],
+    [830, 2038],
+    [3098, 2064]
+  ],
+  "zoom_factor": 4.131630498539686,
+  "processing_mode": "enhanced-rectangle-detection",
+  "detector_version": "2.0"
+}

@@ -288,8 +288,8 @@ def process_uploaded_file(job_id, filepath):
             sys.path.insert(0, str(src_path))
 
         from aruco_detector.detector import ArUcoDetector
+        from enhanced_rectangle_cropper import detect_and_crop_rectangle_enhanced
         from paper_detector import PaperDetector
-        from src.enhanced_rectangle_cropper import detect_and_crop_rectangle_enhanced
 
         # Initialize detectors
         detector = ArUcoDetector()
@@ -395,62 +395,56 @@ def process_uploaded_file(job_id, filepath):
         if template_mask_path:
             # Apply template mask and keep full 779x457 canvas (match webcam behavior)
             masked = detector.apply_template_mask(cropped, template_mask_path)
-            processed_image = masked
+
+            # Content-crop the masked image to krathong only (this is the perfect aligned version)
+            final_masked = detector._crop_masked_area(masked)
+            print(
+                f"🎯 Content-cropped masked image to: {final_masked.shape[1]}x{final_masked.shape[0]}"
+            )
         else:
             print("⚠️ No template mask available, using cropped image")
-            masked = None
+            final_masked = None
             processed_image = cropped
 
-        # Save the processed image
+        # Save only the masked (content-cropped) image as the main result
         filename_base = os.path.splitext(job.filename)[0]
-        result_filename = f"processed_{filename_base}.png"
-        cropped_filename = f"processed_{filename_base}_cropped.png"
         masked_filename = f"processed_{filename_base}_masked.png"
-        result_path = os.path.join(RESULTS_FOLDER, result_filename)
-        cropped_path = os.path.join(RESULTS_FOLDER, cropped_filename)
         masked_path = os.path.join(RESULTS_FOLDER, masked_filename)
 
-        print(f"🔧 Saving to: {result_path}")
-        print(f"🔧 Results folder: {RESULTS_FOLDER}")
-        print(f"🔧 Image shape: {processed_image.shape}")
-        print(f"🔧 Image dtype: {processed_image.dtype}")
+        if final_masked is not None:
+            print(f"🔧 Saving masked result to: {masked_path}")
+            print(f"🔧 Results folder: {RESULTS_FOLDER}")
+            print(f"🔧 Image shape: {final_masked.shape}")
+            print(f"🔧 Image dtype: {final_masked.dtype}")
 
-        # Save intermediate previews for debugging
-        try:
-            cv2.imwrite(cropped_path, cropped)
-            job.cropped_file = cropped_filename
-        except Exception:
-            pass
+            success = cv2.imwrite(masked_path, final_masked)
 
-        if masked is not None:
-            try:
-                cv2.imwrite(masked_path, masked)
-                job.masked_file = masked_filename
-            except Exception:
-                pass
+            print(f"🔧 cv2.imwrite returned: {success}")
+            file_exists = os.path.exists(masked_path)
+            print(f"🔧 File exists after save: {file_exists}")
 
-        success = cv2.imwrite(result_path, processed_image)
+            if file_exists:
+                file_size = os.path.getsize(masked_path)
+                print(f"🔧 File size: {file_size} bytes")
 
-        print(f"🔧 cv2.imwrite returned: {success}")
-        file_exists = os.path.exists(result_path)
-        print(f"🔧 File exists after save: {file_exists}")
+            if success:
+                job.status = "completed"
+                job.result_file = (
+                    masked_filename  # Use the masked file as the main result
+                )
+                print(f"✅ Processing completed: {job.result_file}")
 
-        if file_exists:
-            file_size = os.path.getsize(result_path)
-            print(f"🔧 File size: {file_size} bytes")
-
-        if success:
-            job.status = "completed"
-            job.result_file = result_filename
-            print(f"✅ Processing completed: {job.result_file}")
-
-            # Log template info if available
-            if template_id:
-                print(f"📋 Detected template: {template_id}")
+                # Log template info if available
+                if template_id:
+                    print(f"📋 Detected template: {template_id}")
+            else:
+                job.status = "error"
+                job.error_message = "Failed to save processed image"
+                print(f"❌ Failed to save processed image: {masked_path}")
         else:
             job.status = "error"
-            job.error_message = "Failed to save processed image"
-            print(f"❌ Failed to save processed image: {result_path}")
+            job.error_message = "No template mask available"
+            print("❌ Processing failed: No template mask available")
 
     except Exception as e:
         job.status = "error"
@@ -538,14 +532,6 @@ def check_status(job_id):
     if job.status == "completed" and job.result_file:
         response["download_url"] = url_for("download_result", filename=job.result_file)
         response["preview_url"] = url_for("preview_result", filename=job.result_file)
-        if job.cropped_file:
-            response["preview_cropped_url"] = url_for(
-                "preview_result", filename=job.cropped_file
-            )
-        if job.masked_file:
-            response["preview_masked_url"] = url_for(
-                "preview_result", filename=job.masked_file
-            )
 
     if job.status == "error" and job.error_message:
         response["error"] = job.error_message

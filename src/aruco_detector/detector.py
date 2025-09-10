@@ -100,8 +100,8 @@ class ArUcoDetector:
         self.logger.info(f"ArUco Detector initialized with {dict_type} dictionary")
 
         # Behavior flags
-        # Keep final canvas at 779x457 like webcam mode; don't crop to masked bbox
-        self.crop_masked_area: bool = False
+        # Crop final image to krathong content area (with padding) for better results
+        self.crop_masked_area: bool = True
 
     def detect_template(
         self, marker_ids: List[int], use_partial: bool = False
