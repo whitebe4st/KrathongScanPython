@@ -99,6 +99,10 @@ class ArUcoDetector:
 
         self.logger.info(f"ArUco Detector initialized with {dict_type} dictionary")
 
+        # Behavior flags
+        # Keep final canvas at 779x457 like webcam mode; don't crop to masked bbox
+        self.crop_masked_area: bool = False
+
     def detect_template(
         self, marker_ids: List[int], use_partial: bool = False
     ) -> Optional[str]:
@@ -152,18 +156,21 @@ class ArUcoDetector:
         """
         if self.current_template_config:
             mask_filename = self.current_template_config["mask_file"]
-            
+
             # Try multiple possible paths for both development and executable environments
             possible_paths = [
                 # Development environment paths
                 Path("data/markers/templates") / mask_filename,
-                Path(__file__).parent.parent.parent / "data/markers/templates" / mask_filename,
-                
+                Path(__file__).parent.parent.parent
+                / "data/markers/templates"
+                / mask_filename,
                 # Executable environment paths (PyInstaller)
                 Path(sys.executable).parent / "data/markers/templates" / mask_filename,
-                Path(sys.executable).parent / "src/data/markers/templates" / mask_filename,
+                Path(sys.executable).parent
+                / "src/data/markers/templates"
+                / mask_filename,
             ]
-            
+
             # Try different naming conventions for each path
             for base_path in possible_paths:
                 # Try original filename
@@ -171,7 +178,7 @@ class ArUcoDetector:
                 if mask_path.exists():
                     self.logger.info(f"Using template mask: {mask_path}")
                     return str(mask_path)
-                
+
                 # Try with "mask" prefix and "final" suffix
                 alt_filename = f"mask{self.current_template[-1]}_final.png"
                 mask_path = base_path.parent / alt_filename
@@ -185,19 +192,19 @@ class ArUcoDetector:
             # Fallback to default mask - try multiple paths
             possible_paths = [
                 Path("data/markers/templates/mask1_final.png"),
-                Path(__file__).parent.parent.parent / "data/markers/templates/mask1_final.png",
+                Path(__file__).parent.parent.parent
+                / "data/markers/templates/mask1_final.png",
                 Path(sys.executable).parent / "data/markers/templates/mask1_final.png",
-                Path(sys.executable).parent / "src/data/markers/templates/mask1_final.png",
+                Path(sys.executable).parent
+                / "src/data/markers/templates/mask1_final.png",
             ]
-            
+
             for mask_path in possible_paths:
                 if mask_path.exists():
                     self.logger.info(f"Using default mask: {mask_path}")
                     return str(mask_path)
-            
-            self.logger.error(
-                "No template mask found and no default mask available"
-            )
+
+            self.logger.error("No template mask found and no default mask available")
             return None
 
     def _setup_logger(self):
@@ -519,14 +526,14 @@ class ArUcoDetector:
     def apply_template_mask(self, image: np.ndarray, mask_path: str) -> np.ndarray:
         """
         Apply template mask to extract only the drawing area with transparent background.
-        Uses reliable centered approach with proper scaling.
+        Standardizes image size to match mask dimensions for consistency.
 
         Args:
             image: Input image
             mask_path: Path to the template mask
 
         Returns:
-            Masked image with alpha channel (BGRA)
+            Masked image with alpha channel (BGRA) at standardized size
         """
         try:
             # Load the mask
@@ -535,17 +542,27 @@ class ArUcoDetector:
                 self.logger.error(f"Could not load mask from {mask_path}")
                 return image
 
-            # Resize mask to match image size (centered approach)
-            mask_resized = cv2.resize(mask_template, (image.shape[1], image.shape[0]))
+            # Get mask dimensions - this is our target size
+            mask_height, mask_width = mask_template.shape[:2]
+            self.logger.info(f"Mask dimensions: {mask_width}x{mask_height}")
+
+            # Resize input image to match mask size for consistency
+            # This ensures all processed krathongs have the same dimensions
+            image_resized = cv2.resize(
+                image, (mask_width, mask_height), interpolation=cv2.INTER_LANCZOS4
+            )
+            self.logger.info(
+                f"Resized cropped area from {image.shape[1]}x{image.shape[0]} to {mask_width}x{mask_height}"
+            )
 
             # Create a binary mask: treat gray pixels (above threshold) as white areas to extract
-            _, binary_mask = cv2.threshold(mask_resized, 128, 255, cv2.THRESH_BINARY)
+            _, binary_mask = cv2.threshold(mask_template, 128, 255, cv2.THRESH_BINARY)
 
-            # Convert image to BGRA (add alpha channel)
-            if image.shape[2] == 3:
-                bgra_image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+            # Convert resized image to BGRA (add alpha channel)
+            if image_resized.shape[2] == 3:
+                bgra_image = cv2.cvtColor(image_resized, cv2.COLOR_BGR2BGRA)
             else:
-                bgra_image = image.copy()
+                bgra_image = image_resized.copy()
 
             # Apply the binary mask as alpha channel
             bgra_image[:, :, 3] = binary_mask
@@ -557,7 +574,7 @@ class ArUcoDetector:
             bgra_image[:, :, :3] = masked_bgr
 
             self.logger.info(
-                "Template mask applied with transparent background (centered approach)"
+                f"Template mask applied with standardized size: {mask_width}x{mask_height}"
             )
             return bgra_image
 
@@ -718,8 +735,11 @@ class ArUcoDetector:
                 self.logger.error("No template mask found")
                 return False
 
-            # Step 5: Crop to only the masked content area
-            final_result = self._crop_masked_area(masked)
+            # Step 5: Optionally crop to masked content area (disabled by default)
+            if self.crop_masked_area:
+                final_result = self._crop_masked_area(masked)
+            else:
+                final_result = masked
 
             # Step 6: Prepare metadata
             metadata = {
@@ -848,8 +868,11 @@ class ArUcoDetector:
                 # Fallback to provided mask path
                 masked = self.apply_template_mask(corrected, mask_path)
 
-            # Step 5: Crop to only the masked content area
-            final_result = self._crop_masked_area(masked)
+            # Step 5: Optionally crop to masked content area (disabled by default)
+            if self.crop_masked_area:
+                final_result = self._crop_masked_area(masked)
+            else:
+                final_result = masked
 
             # Step 6: Prepare metadata
             metadata = {
