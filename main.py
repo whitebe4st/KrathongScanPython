@@ -262,7 +262,7 @@ async def main():
 
             # Run auto-directory detection
             run_auto_directory_detection(
-                input_dir, output_dir, args.check_interval, use_homography, True
+                input_dir, output_dir, args.check_interval, use_homography
             )
         elif args.mode == "web-server":
             logger.info("Running in web server mode")
