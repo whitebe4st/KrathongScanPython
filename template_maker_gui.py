@@ -12,6 +12,7 @@ import shutil
 import sys
 import threading
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import List, Optional, Tuple
@@ -66,18 +67,24 @@ class ImageCropper:
         self.canvas_frame = ttk.Frame(main_frame)
         self.canvas_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        self.canvas = tk.Canvas(self.canvas_frame, bg='gray90', cursor='crosshair')
+        self.canvas = tk.Canvas(self.canvas_frame, bg="gray90", cursor="crosshair")
 
         # Scrollbars
-        v_scrollbar = ttk.Scrollbar(self.canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
-        h_scrollbar = ttk.Scrollbar(self.canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        v_scrollbar = ttk.Scrollbar(
+            self.canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview
+        )
+        h_scrollbar = ttk.Scrollbar(
+            self.canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview
+        )
 
-        self.canvas.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        self.canvas.configure(
+            yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set
+        )
 
         # Grid layout for canvas and scrollbars
-        self.canvas.grid(row=0, column=0, sticky='nsew')
-        v_scrollbar.grid(row=0, column=1, sticky='ns')
-        h_scrollbar.grid(row=1, column=0, sticky='ew')
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
 
         self.canvas_frame.grid_rowconfigure(0, weight=1)
         self.canvas_frame.grid_columnconfigure(0, weight=1)
@@ -96,16 +103,24 @@ class ImageCropper:
         coords_frame.pack(fill=tk.X, pady=5)
 
         ttk.Label(coords_frame, text="X1:").grid(row=0, column=0, padx=(0, 5))
-        ttk.Entry(coords_frame, textvariable=self.crop_x1, width=8).grid(row=0, column=1, padx=(0, 10))
+        ttk.Entry(coords_frame, textvariable=self.crop_x1, width=8).grid(
+            row=0, column=1, padx=(0, 10)
+        )
 
         ttk.Label(coords_frame, text="Y1:").grid(row=0, column=2, padx=(0, 5))
-        ttk.Entry(coords_frame, textvariable=self.crop_y1, width=8).grid(row=0, column=3, padx=(0, 10))
+        ttk.Entry(coords_frame, textvariable=self.crop_y1, width=8).grid(
+            row=0, column=3, padx=(0, 10)
+        )
 
         ttk.Label(coords_frame, text="X2:").grid(row=0, column=4, padx=(0, 5))
-        ttk.Entry(coords_frame, textvariable=self.crop_x2, width=8).grid(row=0, column=5, padx=(0, 10))
+        ttk.Entry(coords_frame, textvariable=self.crop_x2, width=8).grid(
+            row=0, column=5, padx=(0, 10)
+        )
 
         ttk.Label(coords_frame, text="Y2:").grid(row=0, column=6, padx=(0, 5))
-        ttk.Entry(coords_frame, textvariable=self.crop_y2, width=8).grid(row=0, column=7, padx=(0, 10))
+        ttk.Entry(coords_frame, textvariable=self.crop_y2, width=8).grid(
+            row=0, column=7, padx=(0, 10)
+        )
 
         # Bind coordinate changes to preview update
         for var in [self.crop_x1, self.crop_y1, self.crop_x2, self.crop_y2]:
@@ -115,16 +130,36 @@ class ImageCropper:
         button_frame = ttk.Frame(controls_frame)
         button_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Button(button_frame, text="Reset", command=self.reset_crop).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Quick Crop", command=self.quick_crop).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Free Draw", command=self.enable_free_draw).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Preview Crop", command=self.preview_crop).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Back to Selection", command=self.update_preview).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Test BG Removal", command=self.test_background_removal).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Smart BG Removal", command=self.smart_background_removal).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Remove White BG", command=self.remove_background).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Apply Crop", command=self.apply_crop).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side=tk.RIGHT)
+        ttk.Button(button_frame, text="Reset", command=self.reset_crop).pack(
+            side=tk.LEFT, padx=(0, 10)
+        )
+        ttk.Button(button_frame, text="Quick Crop", command=self.quick_crop).pack(
+            side=tk.LEFT, padx=(0, 10)
+        )
+        ttk.Button(button_frame, text="Free Draw", command=self.enable_free_draw).pack(
+            side=tk.LEFT, padx=(0, 10)
+        )
+        ttk.Button(button_frame, text="Preview Crop", command=self.preview_crop).pack(
+            side=tk.LEFT, padx=(0, 10)
+        )
+        ttk.Button(
+            button_frame, text="Back to Selection", command=self.update_preview
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(
+            button_frame, text="Test BG Removal", command=self.test_background_removal
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(
+            button_frame, text="Smart BG Removal", command=self.smart_background_removal
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(
+            button_frame, text="Remove White BG", command=self.remove_background
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(button_frame, text="Apply Crop", command=self.apply_crop).pack(
+            side=tk.LEFT, padx=(0, 10)
+        )
+        ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(
+            side=tk.RIGHT
+        )
 
     def start_crop(self, event):
         """Start cropping selection - exact copy from Testtest.py."""
@@ -141,7 +176,9 @@ class ImageCropper:
         if self.rect_id:
             self.canvas.delete(self.rect_id)
 
-        print(f"Debug: Start crop at canvas coords ({self.start_x:.1f}, {self.start_y:.1f})")
+        print(
+            f"Debug: Start crop at canvas coords ({self.start_x:.1f}, {self.start_y:.1f})"
+        )
 
     def update_crop(self, event):
         """Update cropping selection - exact copy from Testtest.py."""
@@ -156,15 +193,24 @@ class ImageCropper:
             self.canvas.delete(self.rect_id)
 
         self.rect_id = self.canvas.create_rectangle(
-            self.start_x, self.start_y, self.end_x, self.end_y,
-            outline='blue', width=10, fill='', dash=(20, 10), tags="crop_rect"
+            self.start_x,
+            self.start_y,
+            self.end_x,
+            self.end_y,
+            outline="blue",
+            width=10,
+            fill="",
+            dash=(20, 10),
+            tags="crop_rect",
         )
         # Bring rectangle to front
         self.canvas.tag_raise("crop_rect")
         # Force canvas update
         self.canvas.update_idletasks()
 
-        print(f"Debug: Drawing rectangle from ({self.start_x:.1f}, {self.start_y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})")
+        print(
+            f"Debug: Drawing rectangle from ({self.start_x:.1f}, {self.start_y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})"
+        )
 
     def end_crop(self, event):
         """End cropping selection - exact copy from Testtest.py."""
@@ -187,15 +233,24 @@ class ImageCropper:
             self.canvas.delete(self.rect_id)
 
         self.rect_id = self.canvas.create_rectangle(
-            self.start_x, self.start_y, self.end_x, self.end_y,
-            outline='blue', width=10, fill='', dash=(20, 10), tags="crop_rect"
+            self.start_x,
+            self.start_y,
+            self.end_x,
+            self.end_y,
+            outline="blue",
+            width=10,
+            fill="",
+            dash=(20, 10),
+            tags="crop_rect",
         )
         # Bring rectangle to front
         self.canvas.tag_raise("crop_rect")
         # Force canvas update
         self.canvas.update_idletasks()
 
-        print(f"Debug: Final rectangle from ({self.start_x:.1f}, {self.start_y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})")
+        print(
+            f"Debug: Final rectangle from ({self.start_x:.1f}, {self.start_y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})"
+        )
         print(f"Debug: Rectangle ID: {self.rect_id}")
         # Debug: Check if rectangle is actually visible
         try:
@@ -206,8 +261,7 @@ class ImageCropper:
 
         # Debug: Create a test rectangle to see if canvas is working
         test_rect = self.canvas.create_rectangle(
-            10, 10, 50, 50,
-            outline='green', width=5, fill='', dash=(5, 5)
+            10, 10, 50, 50, outline="green", width=5, fill="", dash=(5, 5)
         )
         print(f"Debug: Test rectangle created with ID: {test_rect}")
 
@@ -233,8 +287,12 @@ class ImageCropper:
         self.crop_y2.set(int(bottom))
 
         print(f"Debug: Scale factor: {self.scale_factor:.3f}")
-        print(f"Debug: Canvas coords: ({self.start_x:.1f}, {self.start_y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})")
-        print(f"Debug: Image coords: ({int(left)}, {int(top)}) to ({int(right)}, {int(bottom)})")
+        print(
+            f"Debug: Canvas coords: ({self.start_x:.1f}, {self.start_y:.1f}) to ({self.end_x:.1f}, {self.end_y:.1f})"
+        )
+        print(
+            f"Debug: Image coords: ({int(left)}, {int(top)}) to ({int(right)}, {int(bottom)})"
+        )
 
     def clear_selection(self):
         """Clear selection - exact copy from Testtest.py."""
@@ -368,10 +426,15 @@ class ImageCropper:
             # Create template maker instance for background removal
             template_maker = KrathongTemplateMaker()
             # Apply aggressive background removal to original image
-            processed = template_maker.remove_white_background_aggressive(self.original_image)
+            processed = template_maker.remove_white_background_aggressive(
+                self.original_image
+            )
 
             # Save test result
-            test_path = str(Path(self.image_path).parent / f"{Path(self.image_path).stem}_bg_removed_aggressive.png")
+            test_path = str(
+                Path(self.image_path).parent
+                / f"{Path(self.image_path).stem}_bg_removed_aggressive.png"
+            )
             cv2.imwrite(test_path, processed)
 
             print(f"Aggressive background removal test saved to: {test_path}")
@@ -385,7 +448,9 @@ class ImageCropper:
             # Create template maker instance for background removal
             template_maker = KrathongTemplateMaker()
             # Apply smart background removal
-            processed = template_maker.remove_white_background_aggressive(self.cropped_image)
+            processed = template_maker.remove_white_background_aggressive(
+                self.cropped_image
+            )
             self.cropped_image = processed
             self.update_preview()
 
@@ -411,7 +476,9 @@ class ImageCropper:
         if self.rect_id:
             try:
                 rect_coords = self.canvas.coords(self.rect_id)
-                print(f"Debug: Preserving rectangle {self.rect_id} with coords: {rect_coords}")
+                print(
+                    f"Debug: Preserving rectangle {self.rect_id} with coords: {rect_coords}"
+                )
             except:
                 print(f"Debug: Could not get coords for rectangle {self.rect_id}")
                 rect_coords = None
@@ -438,27 +505,39 @@ class ImageCropper:
         display_width = int(img_width * self.scale_factor)
         display_height = int(img_height * self.scale_factor)
 
-        self.display_image = pil_image.resize((display_width, display_height), Image.Resampling.LANCZOS)
+        self.display_image = pil_image.resize(
+            (display_width, display_height), Image.Resampling.LANCZOS
+        )
         self.photo_image = ImageTk.PhotoImage(self.display_image)
 
         # Clear canvas and add image
         self.canvas.delete("all")
 
-        self.canvas_image_id = self.canvas.create_image(0, 0, anchor=tk.NW, image=self.photo_image)
+        self.canvas_image_id = self.canvas.create_image(
+            0, 0, anchor=tk.NW, image=self.photo_image
+        )
 
         # Recreate rectangle if it existed
         if rect_coords and len(rect_coords) == 4:
             self.rect_id = self.canvas.create_rectangle(
-                rect_coords[0], rect_coords[1], rect_coords[2], rect_coords[3],
-                outline='blue', width=10, fill='', dash=(20, 10), tags="crop_rect"
+                rect_coords[0],
+                rect_coords[1],
+                rect_coords[2],
+                rect_coords[3],
+                outline="blue",
+                width=10,
+                fill="",
+                dash=(20, 10),
+                tags="crop_rect",
             )
             # Bring rectangle to front
             self.canvas.tag_raise("crop_rect")
-            print(f"Debug: Recreated rectangle {self.rect_id} at {rect_coords} and brought to front")
+            print(
+                f"Debug: Recreated rectangle {self.rect_id} at {rect_coords} and brought to front"
+            )
 
         # Update canvas scroll region
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
 
     def update_preview(self):
         """Update the preview - simplified version."""
@@ -487,9 +566,15 @@ class ImageCropper:
             offset_y = (canvas_height - display_height) // 2
 
             # Draw boundary rectangle
-            self.canvas.create_rectangle(offset_x, offset_y,
-                                       offset_x + display_width, offset_y + display_height,
-                                       outline="blue", width=1, tags="image_boundary")
+            self.canvas.create_rectangle(
+                offset_x,
+                offset_y,
+                offset_x + display_width,
+                offset_y + display_height,
+                outline="blue",
+                width=1,
+                tags="image_boundary",
+            )
 
         except Exception as e:
             print(f"Image boundary error: {e}")
@@ -541,8 +626,15 @@ class ImageCropper:
             canvas_y2 = image_y + display_y2
 
             # Draw crop rectangle
-            self.canvas.create_rectangle(canvas_x1, canvas_y1, canvas_x2, canvas_y2,
-                                       outline="red", width=2, tags="crop_overlay")
+            self.canvas.create_rectangle(
+                canvas_x1,
+                canvas_y1,
+                canvas_x2,
+                canvas_y2,
+                outline="red",
+                width=2,
+                tags="crop_overlay",
+            )
 
         except Exception as e:
             print(f"Crop overlay error: {e}")
@@ -550,7 +642,10 @@ class ImageCropper:
     def apply_crop(self):
         """Apply the crop and return the cropped image path - copied from Testtest.py."""
         if self.original_image is None or not self.rect_id:
-            messagebox.showwarning("No Selection", "Please make a selection first by dragging on the image.")
+            messagebox.showwarning(
+                "No Selection",
+                "Please make a selection first by dragging on the image.",
+            )
             return None
 
         try:
@@ -582,11 +677,16 @@ class ImageCropper:
             self.cropped_image = cv2.cvtColor(cropped_array, cv2.COLOR_RGB2BGR)
 
             # Save cropped image
-            cropped_path = str(Path(self.image_path).parent / f"{Path(self.image_path).stem}_cropped.png")
+            cropped_path = str(
+                Path(self.image_path).parent
+                / f"{Path(self.image_path).stem}_cropped.png"
+            )
             cv2.imwrite(cropped_path, self.cropped_image)
 
             # Generate mask from cropped image
-            mask = self.template_maker.generate_mask_from_cropped_image(self.cropped_image)
+            mask = self.template_maker.generate_mask_from_cropped_image(
+                self.cropped_image
+            )
 
             # Save mask in output directory
             output_dir = Path("data/templates")
@@ -600,7 +700,10 @@ class ImageCropper:
             print(f"Image cropped to {crop_width}x{crop_height} pixels")
             print(f"Mask generated and saved to: {mask_path}")
 
-            messagebox.showinfo("Success", f"Image cropped and mask generated!\nNew size: {crop_width}x{crop_height} pixels\nMask saved to: {Path(mask_path).name}")
+            messagebox.showinfo(
+                "Success",
+                f"Image cropped and mask generated!\nNew size: {crop_width}x{crop_height} pixels\nMask saved to: {Path(mask_path).name}",
+            )
 
             # Close window and return both paths
             self.window.destroy()
@@ -621,16 +724,26 @@ class KrathongTemplateMaker:
         self.template_height = 720
         self.drawing_width = 779
         self.drawing_height = 457
-        self.drawing_offset_x = (self.template_width - self.drawing_width) // 2  # Center the drawing area
-        self.drawing_offset_y = (self.template_height - self.drawing_height) // 2  # Center the drawing area
+        self.drawing_offset_x = (
+            self.template_width - self.drawing_width
+        ) // 2  # Center the drawing area
+        self.drawing_offset_y = (
+            self.template_height - self.drawing_height
+        ) // 2  # Center the drawing area
         self.marker_size = 100
         self.outline_thickness = 4
 
         # ArUco dictionary
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 
-    def create_template_image(self, marker_ids: List[int], krathong_image: Optional[np.ndarray] = None,
-                            scale: float = 0.8, offset_x: int = 0, offset_y: int = 0) -> np.ndarray:
+    def create_template_image(
+        self,
+        marker_ids: List[int],
+        krathong_image: Optional[np.ndarray] = None,
+        scale: float = 0.8,
+        offset_x: int = 0,
+        offset_y: int = 0,
+    ) -> np.ndarray:
         """
         Create a template image with ArUco markers and optional krathong image.
 
@@ -645,20 +758,37 @@ class KrathongTemplateMaker:
             Template image as numpy array
         """
         # Create white template (BGR format)
-        template = np.ones((self.template_height, self.template_width, 3), dtype=np.uint8) * 255
+        template = (
+            np.ones((self.template_height, self.template_width, 3), dtype=np.uint8)
+            * 255
+        )
 
         # Generate ArUco markers
         markers = []
         for marker_id in marker_ids:
-            marker = cv2.aruco.generateImageMarker(self.aruco_dict, marker_id, self.marker_size)
+            marker = cv2.aruco.generateImageMarker(
+                self.aruco_dict, marker_id, self.marker_size
+            )
             markers.append(marker)
 
         # Place markers at the corners of the drawing area box (outside the box)
         marker_positions = [
-            (self.drawing_offset_x - self.marker_size, self.drawing_offset_y - self.marker_size),  # Top-left corner (outside box)
-            (self.drawing_offset_x + self.drawing_width, self.drawing_offset_y - self.marker_size),  # Top-right corner (outside box)
-            (self.drawing_offset_x - self.marker_size, self.drawing_offset_y + self.drawing_height),  # Bottom-left corner (outside box)
-            (self.drawing_offset_x + self.drawing_width, self.drawing_offset_y + self.drawing_height)  # Bottom-right corner (outside box)
+            (
+                self.drawing_offset_x - self.marker_size,
+                self.drawing_offset_y - self.marker_size,
+            ),  # Top-left corner (outside box)
+            (
+                self.drawing_offset_x + self.drawing_width,
+                self.drawing_offset_y - self.marker_size,
+            ),  # Top-right corner (outside box)
+            (
+                self.drawing_offset_x - self.marker_size,
+                self.drawing_offset_y + self.drawing_height,
+            ),  # Bottom-left corner (outside box)
+            (
+                self.drawing_offset_x + self.drawing_width,
+                self.drawing_offset_y + self.drawing_height,
+            ),  # Bottom-right corner (outside box)
         ]
 
         # Place markers on template
@@ -669,22 +799,36 @@ class KrathongTemplateMaker:
                 marker_3ch = cv2.cvtColor(marker, cv2.COLOR_GRAY2BGR)
             else:
                 marker_3ch = marker
-            template[y:y+self.marker_size, x:x+self.marker_size] = marker_3ch
+            template[y : y + self.marker_size, x : x + self.marker_size] = marker_3ch
 
         # Draw black outlined box in the center for drawing area
-        cv2.rectangle(template,
-                     (self.drawing_offset_x, self.drawing_offset_y),
-                     (self.drawing_offset_x + self.drawing_width, self.drawing_offset_y + self.drawing_height),
-                     (0, 0, 0), self.outline_thickness)
+        cv2.rectangle(
+            template,
+            (self.drawing_offset_x, self.drawing_offset_y),
+            (
+                self.drawing_offset_x + self.drawing_width,
+                self.drawing_offset_y + self.drawing_height,
+            ),
+            (0, 0, 0),
+            self.outline_thickness,
+        )
 
         # Place krathong image if provided
         if krathong_image is not None:
-            self._place_krathong_image(template, krathong_image, scale, offset_x, offset_y)
+            self._place_krathong_image(
+                template, krathong_image, scale, offset_x, offset_y
+            )
 
         return template
 
-    def _place_krathong_image(self, template: np.ndarray, krathong_image: np.ndarray,
-                            scale: float, offset_x: int, offset_y: int):
+    def _place_krathong_image(
+        self,
+        template: np.ndarray,
+        krathong_image: np.ndarray,
+        scale: float,
+        offset_x: int,
+        offset_y: int,
+    ):
         """Place krathong image in the drawing area of the template."""
         # Resize krathong image
         height, width = krathong_image.shape[:2]
@@ -694,7 +838,10 @@ class KrathongTemplateMaker:
         if new_width > 0 and new_height > 0:
             # Only auto-scale if the image is way too big (more than 2x the drawing area)
             # This allows the user's scale setting to work for reasonable sizes
-            if new_width > self.drawing_width * 2 or new_height > self.drawing_height * 2:
+            if (
+                new_width > self.drawing_width * 2
+                or new_height > self.drawing_height * 2
+            ):
                 # Calculate scale to fit within drawing area
                 scale_x = self.drawing_width / new_width
                 scale_y = self.drawing_height / new_height
@@ -702,7 +849,9 @@ class KrathongTemplateMaker:
 
                 new_width = int(new_width * fit_scale)
                 new_height = int(new_height * fit_scale)
-                print(f"Debug: Auto-scaled down to fit (image was too large): {new_width}x{new_height}")
+                print(
+                    f"Debug: Auto-scaled down to fit (image was too large): {new_width}x{new_height}"
+                )
             else:
                 print(f"Debug: Using user scale setting: {new_width}x{new_height}")
 
@@ -716,11 +865,22 @@ class KrathongTemplateMaker:
             start_y = center_y - new_height // 2 + offset_y
 
             # Ensure the image fits within the drawing area
-            start_x = max(self.drawing_offset_x, min(start_x, self.drawing_offset_x + self.drawing_width - new_width))
-            start_y = max(self.drawing_offset_y, min(start_y, self.drawing_offset_y + self.drawing_height - new_height))
+            start_x = max(
+                self.drawing_offset_x,
+                min(start_x, self.drawing_offset_x + self.drawing_width - new_width),
+            )
+            start_y = max(
+                self.drawing_offset_y,
+                min(start_y, self.drawing_offset_y + self.drawing_height - new_height),
+            )
 
             # Place the image
-            if start_x >= 0 and start_y >= 0 and start_x + new_width <= self.template_width and start_y + new_height <= self.template_height:
+            if (
+                start_x >= 0
+                and start_y >= 0
+                and start_x + new_width <= self.template_width
+                and start_y + new_height <= self.template_height
+            ):
                 if len(resized_krathong.shape) == 3:
                     # Color image - handle transparency properly
                     if resized_krathong.shape[2] == 4:
@@ -729,18 +889,33 @@ class KrathongTemplateMaker:
                         alpha = np.stack([alpha, alpha, alpha], axis=2)
 
                         # Convert RGBA to BGR for blending
-                        krathong_bgr = cv2.cvtColor(resized_krathong, cv2.COLOR_RGBA2BGR)
+                        krathong_bgr = cv2.cvtColor(
+                            resized_krathong, cv2.COLOR_RGBA2BGR
+                        )
 
                         # Blend with template background
-                        template_roi = template[start_y:start_y+new_height, start_x:start_x+new_width]
-                        blended = (krathong_bgr * alpha + template_roi * (1 - alpha)).astype(np.uint8)
-                        template[start_y:start_y+new_height, start_x:start_x+new_width] = blended
+                        template_roi = template[
+                            start_y : start_y + new_height,
+                            start_x : start_x + new_width,
+                        ]
+                        blended = (
+                            krathong_bgr * alpha + template_roi * (1 - alpha)
+                        ).astype(np.uint8)
+                        template[
+                            start_y : start_y + new_height,
+                            start_x : start_x + new_width,
+                        ] = blended
                     else:
                         # BGR image - place directly
-                        template[start_y:start_y+new_height, start_x:start_x+new_width] = resized_krathong
+                        template[
+                            start_y : start_y + new_height,
+                            start_x : start_x + new_width,
+                        ] = resized_krathong
                 else:
                     # Grayscale image - convert to BGR
-                    template[start_y:start_y+new_height, start_x:start_x+new_width] = cv2.cvtColor(resized_krathong, cv2.COLOR_GRAY2BGR)
+                    template[
+                        start_y : start_y + new_height, start_x : start_x + new_width
+                    ] = cv2.cvtColor(resized_krathong, cv2.COLOR_GRAY2BGR)
 
     def remove_white_background(self, image: np.ndarray) -> np.ndarray:
         """
@@ -793,7 +968,7 @@ class KrathongTemplateMaker:
         mask = cv2.bitwise_not(combined_mask)
 
         # Apply morphological operations to clean up the mask
-        kernel = np.ones((3,3), np.uint8)
+        kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
@@ -825,7 +1000,9 @@ class KrathongTemplateMaker:
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
 
         # Find contours
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
         # Create mask with template drawing area size (779x457)
         mask = np.zeros((self.drawing_height, self.drawing_width), dtype=np.uint8)
@@ -843,7 +1020,9 @@ class KrathongTemplateMaker:
 
             # Calculate the position to place the contour in the center
             # Scale the contour to fit within the drawing area if needed
-            scale_factor = min(self.drawing_width / w, self.drawing_height / h) * 0.8  # 80% to leave margin
+            scale_factor = (
+                min(self.drawing_width / w, self.drawing_height / h) * 0.8
+            )  # 80% to leave margin
 
             if scale_factor < 1.0:
                 # Scale down the contour
@@ -852,7 +1031,9 @@ class KrathongTemplateMaker:
                 scaled_contour = largest_contour
 
             # Get new bounding rectangle after scaling
-            x_new, y_new, w_new, h_new = cv2.boundingRect(scaled_contour.astype(np.int32))
+            x_new, y_new, w_new, h_new = cv2.boundingRect(
+                scaled_contour.astype(np.int32)
+            )
 
             # Center the contour in the drawing area
             offset_x = center_x - (x_new + w_new // 2)
@@ -862,7 +1043,13 @@ class KrathongTemplateMaker:
             translated_contour = scaled_contour + [offset_x, offset_y]
 
             # Draw the translated contour onto the mask
-            cv2.drawContours(mask, [translated_contour.astype(np.int32)], -1, 255, thickness=cv2.FILLED)
+            cv2.drawContours(
+                mask,
+                [translated_contour.astype(np.int32)],
+                -1,
+                255,
+                thickness=cv2.FILLED,
+            )
 
             # Apply morphological operations to clean up the mask
             kernel = np.ones((3, 3), np.uint8)
@@ -899,7 +1086,9 @@ class KrathongTemplateMaker:
         mask_lab = cv2.inRange(lab, lower_white_lab, upper_white_lab)
 
         # Method 3: Grayscale threshold (balanced)
-        _, mask_gray = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)  # Higher threshold
+        _, mask_gray = cv2.threshold(
+            gray, 230, 255, cv2.THRESH_BINARY
+        )  # Higher threshold
 
         # Method 4: RGB-based white detection (balanced)
         if len(image.shape) == 3:
@@ -914,7 +1103,7 @@ class KrathongTemplateMaker:
 
         # Method 5: Edge preservation - don't remove areas near edges
         edges = cv2.Canny(gray, 50, 150)
-        edges_dilated = cv2.dilate(edges, np.ones((5,5), np.uint8), iterations=2)
+        edges_dilated = cv2.dilate(edges, np.ones((5, 5), np.uint8), iterations=2)
 
         # Combine masks but exclude areas near edges
         combined_mask = cv2.bitwise_or(mask_hsv, mask_lab)
@@ -929,7 +1118,7 @@ class KrathongTemplateMaker:
         mask = cv2.bitwise_not(combined_mask)
 
         # Apply gentle morphological operations to preserve details
-        kernel = np.ones((3,3), np.uint8)  # Smaller kernel
+        kernel = np.ones((3, 3), np.uint8)  # Smaller kernel
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
@@ -957,7 +1146,9 @@ class KrathongTemplateMaker:
         _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
 
         # Find contours
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
         # Create mask
         mask = np.zeros_like(gray)
@@ -996,7 +1187,11 @@ class TemplatePreviewWindow:
             self.krathong_image = cv2.imread(image_path)
             if self.krathong_image is not None:
                 # Remove white background using smart method
-                self.krathong_image = self.template_maker.remove_white_background_aggressive(self.krathong_image)
+                self.krathong_image = (
+                    self.template_maker.remove_white_background_aggressive(
+                        self.krathong_image
+                    )
+                )
 
         # Load mask if provided
         self.mask_image = None
@@ -1048,7 +1243,7 @@ class TemplatePreviewWindow:
             variable=self.scale_var,
             orient=tk.HORIZONTAL,
             length=200,
-            command=self.on_scale_change
+            command=self.on_scale_change,
         )
         scale_scale.pack(side=tk.LEFT, padx=(10, 0))
         self.scale_label = ttk.Label(scale_frame, text=f"{self.image_scale:.2f}")
@@ -1068,7 +1263,7 @@ class TemplatePreviewWindow:
             variable=self.offset_x_var,
             orient=tk.HORIZONTAL,
             length=150,
-            command=self.on_offset_change
+            command=self.on_offset_change,
         )
         x_scale.pack(side=tk.LEFT, padx=(10, 0))
         self.offset_x_label = ttk.Label(offset_frame, text=str(self.image_offset_x))
@@ -1084,7 +1279,7 @@ class TemplatePreviewWindow:
             variable=self.offset_y_var,
             orient=tk.HORIZONTAL,
             length=150,
-            command=self.on_offset_change
+            command=self.on_offset_change,
         )
         y_scale.pack(side=tk.LEFT, padx=(10, 0))
         self.offset_y_label = ttk.Label(offset_frame, text=str(self.image_offset_y))
@@ -1100,15 +1295,13 @@ class TemplatePreviewWindow:
             button_frame,
             text="Show Mask Overlay",
             variable=self.show_mask_var,
-            command=self.toggle_mask_overlay
+            command=self.toggle_mask_overlay,
         )
         mask_toggle.pack(side=tk.LEFT, padx=(0, 10))
 
         # Mask path selection button
         mask_path_btn = ttk.Button(
-            button_frame,
-            text="Select Mask",
-            command=self.select_mask_path
+            button_frame, text="Select Mask", command=self.select_mask_path
         )
         mask_path_btn.pack(side=tk.LEFT, padx=(0, 10))
 
@@ -1123,8 +1316,12 @@ class TemplatePreviewWindow:
         ttk.Label(mask_scale_frame, text="Scale:").pack(side=tk.LEFT)
 
         # Scale decrease button
-        scale_dec_btn = ttk.Button(mask_scale_frame, text="◀", width=2,
-                                  command=lambda: self.adjust_mask_scale(-0.05))
+        scale_dec_btn = ttk.Button(
+            mask_scale_frame,
+            text="◀",
+            width=2,
+            command=lambda: self.adjust_mask_scale(-0.05),
+        )
         scale_dec_btn.pack(side=tk.LEFT, padx=(5, 2))
 
         self.mask_scale_var = tk.DoubleVar(value=1.0)
@@ -1135,13 +1332,17 @@ class TemplatePreviewWindow:
             variable=self.mask_scale_var,
             orient=tk.HORIZONTAL,
             length=60,
-            command=self.on_mask_scale_change
+            command=self.on_mask_scale_change,
         )
         mask_scale_scale.pack(side=tk.LEFT, padx=(2, 2))
 
         # Scale increase button
-        scale_inc_btn = ttk.Button(mask_scale_frame, text="▶", width=2,
-                                  command=lambda: self.adjust_mask_scale(0.05))
+        scale_inc_btn = ttk.Button(
+            mask_scale_frame,
+            text="▶",
+            width=2,
+            command=lambda: self.adjust_mask_scale(0.05),
+        )
         scale_inc_btn.pack(side=tk.LEFT, padx=(2, 5))
 
         self.mask_scale_label = ttk.Label(mask_scale_frame, text="1.0x")
@@ -1155,8 +1356,12 @@ class TemplatePreviewWindow:
         ttk.Label(mask_offset_frame, text="X:").pack(side=tk.LEFT)
 
         # X decrease button
-        x_dec_btn = ttk.Button(mask_offset_frame, text="◀", width=2,
-                              command=lambda: self.adjust_mask_offset_x(-1))
+        x_dec_btn = ttk.Button(
+            mask_offset_frame,
+            text="◀",
+            width=2,
+            command=lambda: self.adjust_mask_offset_x(-1),
+        )
         x_dec_btn.pack(side=tk.LEFT, padx=(2, 1))
 
         self.mask_offset_x_var = tk.IntVar(value=0)
@@ -1167,21 +1372,29 @@ class TemplatePreviewWindow:
             variable=self.mask_offset_x_var,
             orient=tk.HORIZONTAL,
             length=40,
-            command=self.on_mask_offset_change
+            command=self.on_mask_offset_change,
         )
         mask_x_scale.pack(side=tk.LEFT, padx=(1, 1))
 
         # X increase button
-        x_inc_btn = ttk.Button(mask_offset_frame, text="▶", width=2,
-                              command=lambda: self.adjust_mask_offset_x(1))
+        x_inc_btn = ttk.Button(
+            mask_offset_frame,
+            text="▶",
+            width=2,
+            command=lambda: self.adjust_mask_offset_x(1),
+        )
         x_inc_btn.pack(side=tk.LEFT, padx=(1, 5))
 
         # Y offset controls
         ttk.Label(mask_offset_frame, text="Y:").pack(side=tk.LEFT)
 
         # Y decrease button
-        y_dec_btn = ttk.Button(mask_offset_frame, text="◀", width=2,
-                              command=lambda: self.adjust_mask_offset_y(-1))
+        y_dec_btn = ttk.Button(
+            mask_offset_frame,
+            text="◀",
+            width=2,
+            command=lambda: self.adjust_mask_offset_y(-1),
+        )
         y_dec_btn.pack(side=tk.LEFT, padx=(2, 1))
 
         self.mask_offset_y_var = tk.IntVar(value=0)
@@ -1192,19 +1405,25 @@ class TemplatePreviewWindow:
             variable=self.mask_offset_y_var,
             orient=tk.HORIZONTAL,
             length=40,
-            command=self.on_mask_offset_change
+            command=self.on_mask_offset_change,
         )
         mask_y_scale.pack(side=tk.LEFT, padx=(1, 1))
 
         # Y increase button
-        y_inc_btn = ttk.Button(mask_offset_frame, text="▶", width=2,
-                              command=lambda: self.adjust_mask_offset_y(1))
+        y_inc_btn = ttk.Button(
+            mask_offset_frame,
+            text="▶",
+            width=2,
+            command=lambda: self.adjust_mask_offset_y(1),
+        )
         y_inc_btn.pack(side=tk.LEFT, padx=(1, 5))
 
-        ttk.Button(button_frame, text="Create Template",
-                  command=self.create_template).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Close",
-                  command=self.window.destroy).pack(side=tk.RIGHT)
+        ttk.Button(
+            button_frame, text="Create Template", command=self.create_template
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(button_frame, text="Close", command=self.window.destroy).pack(
+            side=tk.RIGHT
+        )
 
     def on_scale_change(self, value):
         """Handle scale changes."""
@@ -1229,20 +1448,27 @@ class TemplatePreviewWindow:
                 krathong_image=self.krathong_image,
                 scale=self.final_scale,
                 offset_x=self.final_offset_x,
-                offset_y=self.final_offset_y
+                offset_y=self.final_offset_y,
             )
 
             # Add mask overlay if enabled and mask is available
-            if (self.show_mask_var.get() and self.mask_image is not None and
-                self.krathong_image is not None):
+            if (
+                self.show_mask_var.get()
+                and self.mask_image is not None
+                and self.krathong_image is not None
+            ):
                 preview_image = self.add_mask_overlay(preview_image)
 
             # Convert to PhotoImage and display
             if preview_image is not None and preview_image.size > 0:
                 # Resize for display (maintain aspect ratio)
                 display_width = 800
-                display_height = int(display_width * preview_image.shape[0] / preview_image.shape[1])
-                preview_image = cv2.resize(preview_image, (display_width, display_height))
+                display_height = int(
+                    display_width * preview_image.shape[0] / preview_image.shape[1]
+                )
+                preview_image = cv2.resize(
+                    preview_image, (display_width, display_height)
+                )
 
                 # Convert BGR to RGB for PIL
                 preview_image = cv2.cvtColor(preview_image, cv2.COLOR_BGR2RGB)
@@ -1251,19 +1477,24 @@ class TemplatePreviewWindow:
                 self.photo = ImageTk.PhotoImage(pil_image)
 
                 self.canvas.delete("all")
-                self.canvas.create_image(400, display_height//2, image=self.photo)
+                self.canvas.create_image(400, display_height // 2, image=self.photo)
             else:
                 # Show placeholder if no image generated
                 self.canvas.delete("all")
-                self.canvas.create_text(400, 200, text="No preview available", fill="gray")
+                self.canvas.create_text(
+                    400, 200, text="No preview available", fill="gray"
+                )
 
         except Exception as e:
             print(f"Preview update error: {e}")
             import traceback
+
             traceback.print_exc()
             # Show a placeholder if preview fails
             self.canvas.delete("all")
-            self.canvas.create_text(400, 200, text=f"Preview Error: {str(e)[:50]}...", fill="red")
+            self.canvas.create_text(
+                400, 200, text=f"Preview Error: {str(e)[:50]}...", fill="red"
+            )
 
     def add_mask_overlay(self, template_image):
         """
@@ -1289,7 +1520,11 @@ class TemplatePreviewWindow:
         scaled_mask_height = int(original_mask_height * mask_scale)
 
         # Resize mask to the scaled size
-        scaled_mask = cv2.resize(self.mask_image, (scaled_mask_width, scaled_mask_height), interpolation=cv2.INTER_NEAREST)
+        scaled_mask = cv2.resize(
+            self.mask_image,
+            (scaled_mask_width, scaled_mask_height),
+            interpolation=cv2.INTER_NEAREST,
+        )
 
         # Center the scaled mask in the drawing area and apply user offsets
         drawing_x = self.template_maker.drawing_offset_x
@@ -1319,24 +1554,38 @@ class TemplatePreviewWindow:
         if actual_width > 0 and actual_height > 0:
             # Create a colored overlay (green with transparency)
             overlay = result.copy()
-            overlay[actual_start_y:end_y, actual_start_x:end_x] = [0, 255, 0]  # Green overlay
+            overlay[actual_start_y:end_y, actual_start_x:end_x] = [
+                0,
+                255,
+                0,
+            ]  # Green overlay
 
             # Calculate the corresponding region in the scaled mask
             mask_offset_x = actual_start_x - mask_start_x
             mask_offset_y = actual_start_y - mask_start_y
-            mask_region = scaled_mask[mask_offset_y:mask_offset_y + actual_height,
-                                    mask_offset_x:mask_offset_x + actual_width]
+            mask_region = scaled_mask[
+                mask_offset_y : mask_offset_y + actual_height,
+                mask_offset_x : mask_offset_x + actual_width,
+            ]
 
             # Apply mask to create semi-transparent overlay
             mask_3ch = cv2.cvtColor(mask_region, cv2.COLOR_GRAY2BGR)
             mask_normalized = mask_3ch.astype(np.float32) / 255.0
 
             # Blend the overlay with the template
-            template_region = result[actual_start_y:end_y, actual_start_x:end_x].astype(np.float32)
-            overlay_region = overlay[actual_start_y:end_y, actual_start_x:end_x].astype(np.float32)
+            template_region = result[actual_start_y:end_y, actual_start_x:end_x].astype(
+                np.float32
+            )
+            overlay_region = overlay[actual_start_y:end_y, actual_start_x:end_x].astype(
+                np.float32
+            )
 
-            blended = template_region * (1 - mask_normalized * 0.5) + overlay_region * (mask_normalized * 0.5)
-            result[actual_start_y:end_y, actual_start_x:end_x] = blended.astype(np.uint8)
+            blended = template_region * (1 - mask_normalized * 0.5) + overlay_region * (
+                mask_normalized * 0.5
+            )
+            result[actual_start_y:end_y, actual_start_x:end_x] = blended.astype(
+                np.uint8
+            )
 
         return result
 
@@ -1353,8 +1602,8 @@ class TemplatePreviewWindow:
             filetypes=[
                 ("Image files", "*.png *.jpg *.jpeg *.bmp *.tiff"),
                 ("PNG files", "*.png"),
-                ("All files", "*.*")
-            ]
+                ("All files", "*.*"),
+            ],
         )
 
         if file_path:
@@ -1420,10 +1669,17 @@ class TemplatePreviewWindow:
         scaled_mask_height = int(original_mask_height * mask_scale)
 
         # Resize mask to the scaled size
-        scaled_mask = cv2.resize(self.mask_image, (scaled_mask_width, scaled_mask_height), interpolation=cv2.INTER_NEAREST)
+        scaled_mask = cv2.resize(
+            self.mask_image,
+            (scaled_mask_width, scaled_mask_height),
+            interpolation=cv2.INTER_NEAREST,
+        )
 
         # Create a new mask with the exact template drawing area size (779x457)
-        final_mask = np.zeros((self.template_maker.drawing_height, self.template_maker.drawing_width), dtype=np.uint8)
+        final_mask = np.zeros(
+            (self.template_maker.drawing_height, self.template_maker.drawing_width),
+            dtype=np.uint8,
+        )
 
         # Center the scaled mask in the drawing area and apply user offsets
         drawing_center_x = self.template_maker.drawing_width // 2
@@ -1439,7 +1695,9 @@ class TemplatePreviewWindow:
 
         # Calculate the actual area to place the mask
         end_x = min(mask_start_x + scaled_mask_width, self.template_maker.drawing_width)
-        end_y = min(mask_start_y + scaled_mask_height, self.template_maker.drawing_height)
+        end_y = min(
+            mask_start_y + scaled_mask_height, self.template_maker.drawing_height
+        )
         actual_start_x = max(0, mask_start_x)
         actual_start_y = max(0, mask_start_y)
         actual_width = end_x - actual_start_x
@@ -1449,8 +1707,10 @@ class TemplatePreviewWindow:
             # Calculate the corresponding region in the scaled mask
             mask_offset_x = actual_start_x - mask_start_x
             mask_offset_y = actual_start_y - mask_start_y
-            mask_region = scaled_mask[mask_offset_y:mask_offset_y + actual_height,
-                                    mask_offset_x:mask_offset_x + actual_width]
+            mask_region = scaled_mask[
+                mask_offset_y : mask_offset_y + actual_height,
+                mask_offset_x : mask_offset_x + actual_width,
+            ]
 
             # Place the mask region in the final mask
             final_mask[actual_start_y:end_y, actual_start_x:end_x] = mask_region
@@ -1458,7 +1718,7 @@ class TemplatePreviewWindow:
         # Save the adjusted mask in the output directory with template name
         # Get the template name from the parent window
         template_name = ""
-        if hasattr(self.parent, 'template_name_var'):
+        if hasattr(self.parent, "template_name_var"):
             template_name = self.parent.template_name_var.get().strip()
 
         if template_name:
@@ -1482,11 +1742,16 @@ class TemplatePreviewWindow:
             mask_path = self.mask_path_var.get().strip()
             if mask_path and os.path.exists(mask_path):
                 original_path = Path(mask_path)
-                adjusted_path = original_path.parent / f"{original_path.stem}_adjusted{original_path.suffix}"
+                adjusted_path = (
+                    original_path.parent
+                    / f"{original_path.stem}_adjusted{original_path.suffix}"
+                )
                 cv2.imwrite(str(adjusted_path), final_mask)
                 self.mask_path_var.set(str(adjusted_path))
                 print(f"Adjusted mask saved to: {adjusted_path}")
-                messagebox.showinfo("Success", f"Adjusted mask saved to:\n{adjusted_path.name}")
+                messagebox.showinfo(
+                    "Success", f"Adjusted mask saved to:\n{adjusted_path.name}"
+                )
 
     def create_template(self):
         """Create template with current settings and save adjusted mask."""
@@ -1594,8 +1859,12 @@ class TemplateMarkerGUI:
 
     def create_info_section(self, parent, row):
         """Create the information section."""
-        info_frame = ttk.LabelFrame(parent, text="📋 Template Specifications", padding="10")
-        info_frame.grid(row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        info_frame = ttk.LabelFrame(
+            parent, text="📋 Template Specifications", padding="10"
+        )
+        info_frame.grid(
+            row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10)
+        )
 
         info_text = (
             "Template Size: 1270×720 pixels | "
@@ -1611,21 +1880,27 @@ class TemplateMarkerGUI:
 
     def create_template_section(self, parent, row):
         """Create the single template creation section."""
-        template_frame = ttk.LabelFrame(parent, text="🎨 Single Template Creation", padding="10")
-        template_frame.grid(row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        template_frame = ttk.LabelFrame(
+            parent, text="🎨 Single Template Creation", padding="10"
+        )
+        template_frame.grid(
+            row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10)
+        )
         template_frame.columnconfigure(1, weight=1)
 
         # Template name
         ttk.Label(template_frame, text="Template Name:", style="Heading.TLabel").grid(
             row=0, column=0, sticky=tk.W, padx=(0, 10), pady=(0, 5)
         )
-        name_entry = ttk.Entry(template_frame, textvariable=self.template_name_var, width=30)
+        name_entry = ttk.Entry(
+            template_frame, textvariable=self.template_name_var, width=30
+        )
         name_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=(0, 5))
 
         # Output directory
-        ttk.Label(template_frame, text="Output Directory:", style="Heading.TLabel").grid(
-            row=1, column=0, sticky=tk.W, padx=(0, 10), pady=(5, 0)
-        )
+        ttk.Label(
+            template_frame, text="Output Directory:", style="Heading.TLabel"
+        ).grid(row=1, column=0, sticky=tk.W, padx=(0, 10), pady=(5, 0))
         output_frame = ttk.Frame(template_frame)
         output_frame.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=(5, 0))
         output_frame.columnconfigure(0, weight=1)
@@ -1680,8 +1955,12 @@ class TemplateMarkerGUI:
             btn.grid(row=0, column=i + 1, padx=5)
 
         # Image file selection
-        image_frame = ttk.LabelFrame(template_frame, text="🖼️ Optional Image", padding="5")
-        image_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0))
+        image_frame = ttk.LabelFrame(
+            template_frame, text="🖼️ Optional Image", padding="5"
+        )
+        image_frame.grid(
+            row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0)
+        )
         image_frame.columnconfigure(0, weight=1)
 
         image_file_frame = ttk.Frame(image_frame)
@@ -1712,7 +1991,6 @@ class TemplateMarkerGUI:
             row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0)
         )
 
-
         # Buttons frame
         buttons_frame = ttk.Frame(template_frame)
         buttons_frame.grid(row=5, column=0, columnspan=2, pady=(15, 0))
@@ -1727,7 +2005,9 @@ class TemplateMarkerGUI:
         ).grid(row=0, column=1, padx=(0, 10))
 
         ttk.Button(
-            buttons_frame, text="🔄 Update Live Preview", command=self.update_live_preview
+            buttons_frame,
+            text="🔄 Update Live Preview",
+            command=self.update_live_preview,
         ).grid(row=0, column=2)
 
     def create_batch_section(self, parent, row):
@@ -1800,7 +2080,9 @@ class TemplateMarkerGUI:
     def create_status_bar(self, parent, row):
         """Create the status bar."""
         status_frame = ttk.Frame(parent)
-        status_frame.grid(row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(20, 0))
+        status_frame.grid(
+            row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(20, 0)
+        )
         status_frame.columnconfigure(0, weight=1)
 
         # Progress bar
@@ -1818,6 +2100,7 @@ class TemplateMarkerGUI:
         if markers is None:
             # Generate random markers
             import random
+
             markers = random.sample(range(50), 4)
 
         for i, marker_id in enumerate(markers):
@@ -1826,8 +2109,7 @@ class TemplateMarkerGUI:
     def browse_output_directory(self):
         """Browse for output directory."""
         directory = filedialog.askdirectory(
-            title="Select Output Directory",
-            initialdir=self.output_dir_var.get()
+            title="Select Output Directory", initialdir=self.output_dir_var.get()
         )
         if directory:
             self.output_dir_var.set(directory)
@@ -1859,7 +2141,7 @@ class TemplateMarkerGUI:
             self.root.wait_window(cropper.window)
 
             # Check if user applied crop
-            if hasattr(cropper, 'cropped_image') and cropper.cropped_image is not None:
+            if hasattr(cropper, "cropped_image") and cropper.cropped_image is not None:
                 # The cropper now returns both cropped_path and mask_path
                 result = cropper.apply_crop()
                 if result and len(result) == 2:
@@ -1868,10 +2150,14 @@ class TemplateMarkerGUI:
                     self.image_path_var.set(cropped_path)
                     # Store mask path for later use
                     self.mask_path_var.set(mask_path)
-                    self.update_status(f"Cropped image: {Path(cropped_path).name}, Mask: {Path(mask_path).name}")
+                    self.update_status(
+                        f"Cropped image: {Path(cropped_path).name}, Mask: {Path(mask_path).name}"
+                    )
                 else:
                     # Fallback to old method if apply_crop wasn't called
-                    cropped_path = str(Path(image_path).parent / f"{Path(image_path).stem}_cropped.png")
+                    cropped_path = str(
+                        Path(image_path).parent / f"{Path(image_path).stem}_cropped.png"
+                    )
                     cv2.imwrite(cropped_path, cropper.cropped_image)
                     self.image_path_var.set(cropped_path)
                     self.update_status(f"Cropped image: {Path(cropped_path).name}")
@@ -1894,7 +2180,9 @@ class TemplateMarkerGUI:
             return
 
         if not Path(image_path).exists():
-            messagebox.showerror("File Not Found", f"Image file not found: {image_path}")
+            messagebox.showerror(
+                "File Not Found", f"Image file not found: {image_path}"
+            )
             return
 
         try:
@@ -1902,20 +2190,24 @@ class TemplateMarkerGUI:
             image = cv2.imread(image_path)
             if image is None:
                 messagebox.showerror("Error", "Could not load the image file.")
-                    return
+                return
 
             # Remove white background
             processed_image = self.template_maker.remove_white_background(image)
 
             # Save processed image
-            processed_path = str(Path(image_path).parent / f"{Path(image_path).stem}_processed.png")
+            processed_path = str(
+                Path(image_path).parent / f"{Path(image_path).stem}_processed.png"
+            )
             cv2.imwrite(processed_path, processed_image)
 
             # Update the image path
             self.image_path_var.set(processed_path)
             self.update_status(f"Processed image: {Path(processed_path).name}")
 
-            messagebox.showinfo("Success", f"White background removed!\nSaved to: {processed_path}")
+            messagebox.showinfo(
+                "Success", f"White background removed!\nSaved to: {processed_path}"
+            )
 
         except Exception as e:
             messagebox.showerror("Processing Error", f"Failed to process image: {e}")
@@ -1942,18 +2234,18 @@ class TemplateMarkerGUI:
                 image_scale=0.8,  # Default scale
                 image_offset_x=0,  # Default X offset
                 image_offset_y=0,  # Default Y offset
-                mask_path=self.mask_path_var.get().strip() or None
+                mask_path=self.mask_path_var.get().strip() or None,
             )
 
             # Wait for window to close, then check if user created template
             self.root.wait_window(preview_window.window)
 
             # Check if preview window has updated values and save them
-            if hasattr(preview_window, 'final_scale'):
+            if hasattr(preview_window, "final_scale"):
                 self.adjusted_scale = preview_window.final_scale
-            if hasattr(preview_window, 'final_offset_x'):
+            if hasattr(preview_window, "final_offset_x"):
                 self.adjusted_offset_x = preview_window.final_offset_x
-            if hasattr(preview_window, 'final_offset_y'):
+            if hasattr(preview_window, "final_offset_y"):
                 self.adjusted_offset_y = preview_window.final_offset_y
 
         except Exception as e:
@@ -1977,7 +2269,9 @@ class TemplateMarkerGUI:
 
                 marker_id = int(value)
                 if marker_id < 0 or marker_id > 49:
-                    messagebox.showerror("Error", f"Marker ID {marker_id} must be between 0 and 49")
+                    messagebox.showerror(
+                        "Error", f"Marker ID {marker_id} must be between 0 and 49"
+                    )
                     return None
 
                 if marker_id in markers:
@@ -2031,15 +2325,19 @@ class TemplateMarkerGUI:
                     krathong_image = cv2.imread(image_path)
                     if krathong_image is not None:
                         # Remove white background using smart method
-                        krathong_image = self.template_maker.remove_white_background_aggressive(krathong_image)
+                        krathong_image = (
+                            self.template_maker.remove_white_background_aggressive(
+                                krathong_image
+                            )
+                        )
 
                 # Create template image using adjusted values from preview
                 template_image = self.template_maker.create_template_image(
-                        marker_ids=markers,
+                    marker_ids=markers,
                     krathong_image=krathong_image,
                     scale=self.adjusted_scale,
                     offset_x=self.adjusted_offset_x,
-                    offset_y=self.adjusted_offset_y
+                    offset_y=self.adjusted_offset_y,
                 )
 
                 # Ensure output directory exists
@@ -2068,9 +2366,36 @@ class TemplateMarkerGUI:
                         mask_file = output_path / f"{template_name}_mask.png"
                         cv2.imwrite(str(mask_file), mask)
 
+                # 🎯 Save ArUco metadata for CRUD system
+                metadata = {
+                    "template_name": template_name,
+                    "aruco_ids": markers,
+                    "template_file": str(template_file),
+                    "mask_file": str(mask_file) if mask_file else None,
+                    "template_width": self.template_maker.template_width,
+                    "template_height": self.template_maker.template_height,
+                    "created_at": datetime.now().isoformat(),
+                    "marker_positions": {
+                        "top_left": markers[0],
+                        "top_right": markers[1],
+                        "bottom_left": markers[2],
+                        "bottom_right": markers[3],
+                    },
+                    "dictionary_type": "4X4_50",
+                }
+
+                # Save metadata file
+                metadata_file = output_path / f"{template_name}_metadata.json"
+                with open(metadata_file, "w") as f:
+                    json.dump(metadata, f, indent=2)
+
+                print(f"✅ Template metadata saved: {metadata_file}")
+                print(f"🎯 ArUco IDs: {markers}")
+
                 self.update_status("Template created successfully!", False)
                 messagebox.showinfo(
-                    "Success", f"Template created successfully!\n\nFile: {template_file}"
+                    "Success",
+                    f"Template created successfully!\n\nFiles:\n- Template: {template_file}\n- Metadata: {metadata_file}",
                 )
 
             except Exception as e:
@@ -2090,7 +2415,7 @@ class TemplateMarkerGUI:
                 "How many templates do you want to create?",
                 minvalue=1,
                 maxvalue=50,
-                initialvalue=5
+                initialvalue=5,
             )
 
             if not num_templates:
@@ -2102,7 +2427,7 @@ class TemplateMarkerGUI:
                 "Starting marker ID (0-46):",
                 minvalue=0,
                 maxvalue=46,
-                initialvalue=0
+                initialvalue=0,
             )
 
             if start_id is None:
@@ -2128,19 +2453,25 @@ class TemplateMarkerGUI:
                         if base_marker + 3 > 49:
                             messagebox.showwarning(
                                 "Warning",
-                                f"Stopping at template {i + 1}: would exceed marker ID 49"
+                                f"Stopping at template {i + 1}: would exceed marker ID 49",
                             )
                             break
 
                         markers = [base_marker + j for j in range(4)]
                         template_name = f"{base_name}_{i + 1:02d}"
 
-                        self.update_status(f"Creating template {i + 1}/{num_templates}: {template_name}", True)
+                        self.update_status(
+                            f"Creating template {i + 1}/{num_templates}: {template_name}",
+                            True,
+                        )
 
                         # Create template
                         image_path = self.image_path_var.get().strip()
                         if image_path:
-                            success, message = self.template_maker.create_template_with_registry(
+                            (
+                                success,
+                                message,
+                            ) = self.template_maker.create_template_with_registry(
                                 template_name=template_name,
                                 client_name="GUI_Sequential",
                                 marker_ids=markers,
@@ -2148,21 +2479,30 @@ class TemplateMarkerGUI:
                                 image_path=image_path,
                                 image_scale=self.adjusted_scale,
                                 image_offset_x=self.adjusted_offset_x,
-                                image_offset_y=self.adjusted_offset_y
+                                image_offset_y=self.adjusted_offset_y,
                             )
                         else:
-                            success, message = self.template_maker.create_template_with_registry(
+                            (
+                                success,
+                                message,
+                            ) = self.template_maker.create_template_with_registry(
                                 template_name=template_name,
                                 client_name="GUI_Sequential",
                                 marker_ids=markers,
-                                output_dir=output_dir
+                                output_dir=output_dir,
                             )
 
                         if not success:
                             raise Exception(message)
 
-                    self.update_status(f"Created {num_templates} sequential templates successfully!", False)
-                    messagebox.showinfo("Success", f"Created {num_templates} sequential templates successfully!")
+                    self.update_status(
+                        f"Created {num_templates} sequential templates successfully!",
+                        False,
+                    )
+                    messagebox.showinfo(
+                        "Success",
+                        f"Created {num_templates} sequential templates successfully!",
+                    )
 
                 except Exception as e:
                     self.update_status("Error creating templates", False)
@@ -2180,19 +2520,21 @@ class TemplateMarkerGUI:
         config_file = filedialog.askopenfilename(
             title="Select Configuration File",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            initialdir=os.getcwd()
+            initialdir=os.getcwd(),
         )
 
         if not config_file:
             return
 
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 config = json.load(f)
 
-            templates = config.get('templates', [])
+            templates = config.get("templates", [])
             if not templates:
-                messagebox.showerror("Error", "No templates found in configuration file")
+                messagebox.showerror(
+                    "Error", "No templates found in configuration file"
+                )
                 return
 
             def create_from_config_thread():
@@ -2200,24 +2542,37 @@ class TemplateMarkerGUI:
                     self.update_status("Creating templates from config...", True)
 
                     for i, template_config in enumerate(templates):
-                        template_name = template_config.get('name', f'template_{i+1}')
-                        markers = template_config.get('markers', [i*4, i*4+1, i*4+2, i*4+3])
+                        template_name = template_config.get("name", f"template_{i+1}")
+                        markers = template_config.get(
+                            "markers", [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 3]
+                        )
 
-                        self.update_status(f"Creating template {i+1}/{len(templates)}: {template_name}", True)
+                        self.update_status(
+                            f"Creating template {i+1}/{len(templates)}: {template_name}",
+                            True,
+                        )
 
                         # Create template
-                        success, message = self.template_maker.create_template_with_registry(
+                        (
+                            success,
+                            message,
+                        ) = self.template_maker.create_template_with_registry(
                             template_name=template_name,
                             client_name="GUI_Config",
                             marker_ids=markers,
-                            output_dir=self.output_dir_var.get()
+                            output_dir=self.output_dir_var.get(),
                         )
 
                         if not success:
                             raise Exception(message)
 
-                    self.update_status(f"Created {len(templates)} templates from config!", False)
-                    messagebox.showinfo("Success", f"Created {len(templates)} templates from configuration!")
+                    self.update_status(
+                        f"Created {len(templates)} templates from config!", False
+                    )
+                    messagebox.showinfo(
+                        "Success",
+                        f"Created {len(templates)} templates from configuration!",
+                    )
 
                 except Exception as e:
                     self.update_status("Error creating templates", False)
@@ -2238,7 +2593,7 @@ class TemplateMarkerGUI:
                 {"name": "template_02", "markers": [4, 5, 6, 7]},
                 {"name": "template_03", "markers": [8, 9, 10, 11]},
                 {"name": "template_04", "markers": [12, 13, 14, 15]},
-                {"name": "template_05", "markers": [16, 17, 18, 19]}
+                {"name": "template_05", "markers": [16, 17, 18, 19]},
             ]
         }
 
@@ -2246,14 +2601,16 @@ class TemplateMarkerGUI:
             title="Save Sample Configuration",
             defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            initialfilename="template_config.json"
+            initialfilename="template_config.json",
         )
 
         if config_file:
             try:
-                with open(config_file, 'w') as f:
+                with open(config_file, "w") as f:
                     json.dump(sample_config, f, indent=2)
-                messagebox.showinfo("Success", f"Sample configuration saved to: {config_file}")
+                messagebox.showinfo(
+                    "Success", f"Sample configuration saved to: {config_file}"
+                )
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save configuration: {e}")
 
@@ -2298,7 +2655,9 @@ class TemplateMarkerGUI:
         listbox = tk.Listbox(listbox_frame)
         listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=listbox.yview)
+        scrollbar = ttk.Scrollbar(
+            listbox_frame, orient=tk.VERTICAL, command=listbox.yview
+        )
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         listbox.configure(yscrollcommand=scrollbar.set)
 
@@ -2321,6 +2680,7 @@ class TemplateMarkerGUI:
 
         try:
             import platform
+
             if platform.system() == "Windows":
                 os.startfile(output_dir)
             elif platform.system() == "Darwin":  # macOS
@@ -2343,7 +2703,7 @@ class TemplateMarkerGUI:
             "Supported Image Formats": "PNG, JPG, JPEG, BMP, TIFF",
             "Image Scale Range": "10% - 150%",
             "Image Offset Range": "-200px to +200px (X and Y)",
-            "Output Format": "PNG with transparency"
+            "Output Format": "PNG with transparency",
         }
 
         specs_window = tk.Toplevel(self.root)
@@ -2356,18 +2716,24 @@ class TemplateMarkerGUI:
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Title
-        ttk.Label(main_frame, text="Template Specifications", style="Title.TLabel").pack(pady=(0, 20))
+        ttk.Label(
+            main_frame, text="Template Specifications", style="Title.TLabel"
+        ).pack(pady=(0, 20))
 
         # Specifications
         for key, value in specs.items():
             spec_frame = ttk.Frame(main_frame)
             spec_frame.pack(fill=tk.X, pady=2)
 
-            ttk.Label(spec_frame, text=f"{key}:", style="Heading.TLabel").pack(side=tk.LEFT)
+            ttk.Label(spec_frame, text=f"{key}:", style="Heading.TLabel").pack(
+                side=tk.LEFT
+            )
             ttk.Label(spec_frame, text=value).pack(side=tk.RIGHT)
 
         # Close button
-        ttk.Button(main_frame, text="Close", command=specs_window.destroy).pack(pady=(20, 0))
+        ttk.Button(main_frame, text="Close", command=specs_window.destroy).pack(
+            pady=(20, 0)
+        )
 
     def run(self):
         """Start the GUI application."""

@@ -89,6 +89,9 @@ class ArUcoDetector:
         self.current_template = None
         self.current_template_config = None
 
+        # 🎯 Load custom templates from database
+        self._load_custom_templates()
+
         # Expected corner marker IDs (for perspective correction)
         self.corner_marker_ids = [
             0,
@@ -1320,3 +1323,48 @@ class ArUcoDetector:
         except Exception as e:
             self.logger.error(f"Error cropping masked area: {e}")
             return masked_image
+
+    def _load_custom_templates(self):
+        """
+        Load custom templates from database and merge with hardcoded templates.
+
+        This method integrates the CRUD template system with the ArUco detector.
+        """
+        try:
+            # Import template manager (delayed import to avoid circular dependencies)
+            from apps.scanner.template_manager import TemplateManager
+
+            manager = TemplateManager()
+
+            # Get template configuration from database
+            custom_config = manager.get_template_config_dict()
+            custom_marker_mapping = manager.get_marker_to_template_dict()
+
+            # Merge with existing hardcoded templates
+            self.template_configs.update(custom_config)
+            self.marker_to_template.update(custom_marker_mapping)
+
+            # Log statistics
+            stats = manager.get_statistics()
+            self.logger.info(
+                f"🎯 Loaded custom templates: {stats['custom_templates']} custom + {stats['hardcoded_templates']} hardcoded"
+            )
+            self.logger.info(
+                f"📊 Total templates: {stats['total_templates'] + stats['hardcoded_templates']}"
+            )
+            self.logger.info(f"🎯 Available marker IDs: {stats['available_markers']}")
+
+        except ImportError as e:
+            self.logger.warning(f"⚠️ Could not import template manager: {e}")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Failed to load custom templates: {e}")
+
+    def reload_custom_templates(self):
+        """
+        Reload custom templates from database.
+
+        Call this method when templates are added/modified through CRUD operations.
+        """
+        self.logger.info("🔄 Reloading custom templates...")
+        self._load_custom_templates()
+        self.logger.info("✅ Custom templates reloaded")

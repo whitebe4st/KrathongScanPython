@@ -13,7 +13,7 @@ from .models import TemplateData
 class LocalTemplateRegistry:
     """Manages template data in local SQLite database."""
 
-    def __init__(self, db_path: str = "data/templates.db"):
+    def __init__(self, db_path: str = "scanner.db"):
         self.db_path = db_path
         self.init_database()
 
@@ -214,3 +214,41 @@ class LocalTemplateRegistry:
                     break
 
         return available_ids
+
+    def get_all_templates(self, include_inactive: bool = False) -> List[TemplateData]:
+        """Get all templates from database."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                if include_inactive:
+                    cursor.execute("SELECT * FROM templates ORDER BY name")
+                else:
+                    cursor.execute(
+                        "SELECT * FROM templates WHERE is_active = 1 ORDER BY name"
+                    )
+
+                templates = []
+                for row in cursor.fetchall():
+                    template_dict = {
+                        "name": row[1],
+                        "marker_ids": row[2],
+                        "image_path": row[3],
+                        "mask_path": row[4],
+                        "template_width": row[5],
+                        "template_height": row[6],
+                        "is_active": row[7],
+                        "created_at": row[8],
+                        "updated_at": row[9],
+                    }
+                    templates.append(TemplateData.from_dict(template_dict))
+
+                return templates
+
+        except Exception as e:
+            print(f"Error getting all templates: {e}")
+            return []
+
+    def get_template(self, name: str) -> Optional[TemplateData]:
+        """Get template by name (alias for get_template_by_name)."""
+        return self.get_template_by_name(name)
