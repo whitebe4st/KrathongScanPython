@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """
-Template Management Launcher
+Scanner Database Editor
 
-Launch the template CRUD GUI for managing custom templates.
+This is the CRUD interface for editing the scanner's template database (scanner.db).
+The scanner will automatically load templates from this database, with fallback to hardcoded templates.
+
+Architecture:
+- scanner.db: Primary template storage for the scanner
+- Hardcoded templates: Fallback when database is empty
+- This tool: Database editor for scanner.db
 """
 
 import sys
@@ -16,7 +22,12 @@ if __name__ == "__main__":
     try:
         from apps.scanner.template_crud_gui import TemplateManagementGUI
 
-        print("🎯 Starting Template Management System...")
+        print("🗃️  Starting Scanner Database Editor...")
+        print("📊 This tool edits the scanner's template database (scanner.db)")
+        print("🎯 The scanner will automatically load templates from this database")
+        print("📋 Fallback to hardcoded templates if database is empty")
+        print("-" * 60)
+
         app = TemplateManagementGUI()
         app.run()
 

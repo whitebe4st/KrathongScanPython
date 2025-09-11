@@ -1170,9 +1170,11 @@ class TemplatePreviewWindow:
         image_offset_x=0,
         image_offset_y=0,
         mask_path=None,
+        main_gui=None,  # Add reference to main GUI
     ):
         """Initialize preview window."""
         self.parent = parent
+        self.main_gui = main_gui  # Store reference to main GUI for template name access
         self.template_maker = template_maker
         self.marker_ids = marker_ids
         self.image_path = image_path
@@ -1204,6 +1206,13 @@ class TemplatePreviewWindow:
         self.window.title("Template Preview")
         self.window.geometry("1000x700")
         self.window.resizable(True, True)
+
+        # Bind global arrow keys for mask offset adjustment
+        self.window.bind("<Left>", lambda e: self.adjust_mask_offset_x(-1))
+        self.window.bind("<Right>", lambda e: self.adjust_mask_offset_x(1))
+        self.window.bind("<Up>", lambda e: self.adjust_mask_offset_y(-1))
+        self.window.bind("<Down>", lambda e: self.adjust_mask_offset_y(1))
+        self.window.focus_set()  # Set focus to enable key bindings
 
         # Variables for interactive adjustment
         self.final_scale = image_scale
@@ -1309,114 +1318,213 @@ class TemplatePreviewWindow:
         mask_controls_frame = ttk.Frame(button_frame)
         mask_controls_frame.pack(side=tk.LEFT, padx=(0, 10))
 
-        # Mask scale adjustment
-        mask_scale_frame = ttk.Frame(mask_controls_frame)
-        mask_scale_frame.pack(side=tk.TOP, pady=(0, 5))
-
-        ttk.Label(mask_scale_frame, text="Scale:").pack(side=tk.LEFT)
-
-        # Scale decrease button
-        scale_dec_btn = ttk.Button(
-            mask_scale_frame,
-            text="◀",
-            width=2,
-            command=lambda: self.adjust_mask_scale(-0.05),
+        # Mask scale adjustment - Improved precision and control
+        mask_scale_frame = ttk.LabelFrame(
+            mask_controls_frame, text="Scale Control", padding="5"
         )
-        scale_dec_btn.pack(side=tk.LEFT, padx=(5, 2))
+        mask_scale_frame.pack(side=tk.TOP, pady=(0, 5), fill=tk.X)
+
+        # Scale value entry
+        scale_entry_frame = ttk.Frame(mask_scale_frame)
+        scale_entry_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
+
+        ttk.Label(scale_entry_frame, text="Scale:").pack(side=tk.LEFT)
 
         self.mask_scale_var = tk.DoubleVar(value=1.0)
+        self.scale_entry = ttk.Entry(
+            scale_entry_frame, textvariable=self.mask_scale_var, width=8
+        )
+        self.scale_entry.pack(side=tk.LEFT, padx=(5, 5))
+        self.scale_entry.bind("<Return>", lambda e: self.on_mask_scale_change())
+        self.scale_entry.bind("<FocusOut>", lambda e: self.on_mask_scale_change())
+
+        self.mask_scale_label = ttk.Label(scale_entry_frame, text="1.000x")
+        self.mask_scale_label.pack(side=tk.LEFT, padx=(5, 0))
+
+        # Scale adjustment buttons - More precise
+        scale_btn_frame = ttk.Frame(mask_scale_frame)
+        scale_btn_frame.pack(side=tk.TOP, fill=tk.X)
+
+        ttk.Button(
+            scale_btn_frame,
+            text="-0.1",
+            width=4,
+            command=lambda: self.adjust_mask_scale(-0.1),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            scale_btn_frame,
+            text="-0.01",
+            width=4,
+            command=lambda: self.adjust_mask_scale(-0.01),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            scale_btn_frame,
+            text="+0.01",
+            width=4,
+            command=lambda: self.adjust_mask_scale(0.01),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            scale_btn_frame,
+            text="+0.1",
+            width=4,
+            command=lambda: self.adjust_mask_scale(0.1),
+        ).pack(side=tk.LEFT, padx=1)
+
+        # Scale slider for quick adjustments
         mask_scale_scale = ttk.Scale(
             mask_scale_frame,
             from_=0.1,
             to=3.0,
             variable=self.mask_scale_var,
             orient=tk.HORIZONTAL,
-            length=60,
+            length=200,
             command=self.on_mask_scale_change,
         )
-        mask_scale_scale.pack(side=tk.LEFT, padx=(2, 2))
+        mask_scale_scale.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
 
-        # Scale increase button
-        scale_inc_btn = ttk.Button(
-            mask_scale_frame,
-            text="▶",
-            width=2,
-            command=lambda: self.adjust_mask_scale(0.05),
+        # Mask offset controls - Improved layout and precision
+        mask_offset_frame = ttk.LabelFrame(
+            mask_controls_frame, text="Position Control", padding="5"
         )
-        scale_inc_btn.pack(side=tk.LEFT, padx=(2, 5))
-
-        self.mask_scale_label = ttk.Label(mask_scale_frame, text="1.0x")
-        self.mask_scale_label.pack(side=tk.LEFT)
-
-        # Mask offset controls
-        mask_offset_frame = ttk.Frame(mask_controls_frame)
-        mask_offset_frame.pack(side=tk.TOP)
+        mask_offset_frame.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
 
         # X offset controls
-        ttk.Label(mask_offset_frame, text="X:").pack(side=tk.LEFT)
+        x_offset_frame = ttk.Frame(mask_offset_frame)
+        x_offset_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 3))
 
-        # X decrease button
-        x_dec_btn = ttk.Button(
-            mask_offset_frame,
-            text="◀",
-            width=2,
-            command=lambda: self.adjust_mask_offset_x(-1),
-        )
-        x_dec_btn.pack(side=tk.LEFT, padx=(2, 1))
+        ttk.Label(x_offset_frame, text="X Offset:").pack(side=tk.LEFT)
 
         self.mask_offset_x_var = tk.IntVar(value=0)
+        self.x_offset_entry = ttk.Entry(
+            x_offset_frame, textvariable=self.mask_offset_x_var, width=6
+        )
+        self.x_offset_entry.pack(side=tk.LEFT, padx=(5, 5))
+        self.x_offset_entry.bind("<Return>", lambda e: self.on_mask_offset_change())
+        self.x_offset_entry.bind("<FocusOut>", lambda e: self.on_mask_offset_change())
+
+        # Bind arrow keys for X offset adjustment
+        self.x_offset_entry.bind("<Left>", lambda e: self.adjust_mask_offset_x(-1))
+        self.x_offset_entry.bind("<Right>", lambda e: self.adjust_mask_offset_x(1))
+        self.x_offset_entry.bind("<Up>", lambda e: self.adjust_mask_offset_x(1))
+        self.x_offset_entry.bind("<Down>", lambda e: self.adjust_mask_offset_x(-1))
+
+        # X offset buttons
+        ttk.Button(
+            x_offset_frame,
+            text="-10",
+            width=3,
+            command=lambda: self.adjust_mask_offset_x(-10),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            x_offset_frame,
+            text="-1",
+            width=3,
+            command=lambda: self.adjust_mask_offset_x(-1),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            x_offset_frame,
+            text="+1",
+            width=3,
+            command=lambda: self.adjust_mask_offset_x(1),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            x_offset_frame,
+            text="+10",
+            width=3,
+            command=lambda: self.adjust_mask_offset_x(10),
+        ).pack(side=tk.LEFT, padx=1)
+
+        # X offset slider
         mask_x_scale = ttk.Scale(
-            mask_offset_frame,
+            x_offset_frame,
             from_=-200,
             to=200,
             variable=self.mask_offset_x_var,
             orient=tk.HORIZONTAL,
-            length=40,
+            length=150,
             command=self.on_mask_offset_change,
         )
-        mask_x_scale.pack(side=tk.LEFT, padx=(1, 1))
-
-        # X increase button
-        x_inc_btn = ttk.Button(
-            mask_offset_frame,
-            text="▶",
-            width=2,
-            command=lambda: self.adjust_mask_offset_x(1),
-        )
-        x_inc_btn.pack(side=tk.LEFT, padx=(1, 5))
+        mask_x_scale.pack(side=tk.RIGHT, padx=(10, 0))
 
         # Y offset controls
-        ttk.Label(mask_offset_frame, text="Y:").pack(side=tk.LEFT)
+        y_offset_frame = ttk.Frame(mask_offset_frame)
+        y_offset_frame.pack(side=tk.TOP, fill=tk.X)
 
-        # Y decrease button
-        y_dec_btn = ttk.Button(
-            mask_offset_frame,
-            text="◀",
-            width=2,
-            command=lambda: self.adjust_mask_offset_y(-1),
-        )
-        y_dec_btn.pack(side=tk.LEFT, padx=(2, 1))
+        ttk.Label(y_offset_frame, text="Y Offset:").pack(side=tk.LEFT)
 
         self.mask_offset_y_var = tk.IntVar(value=0)
+        self.y_offset_entry = ttk.Entry(
+            y_offset_frame, textvariable=self.mask_offset_y_var, width=6
+        )
+        self.y_offset_entry.pack(side=tk.LEFT, padx=(5, 5))
+        self.y_offset_entry.bind("<Return>", lambda e: self.on_mask_offset_change())
+        self.y_offset_entry.bind("<FocusOut>", lambda e: self.on_mask_offset_change())
+
+        # Bind arrow keys for Y offset adjustment
+        self.y_offset_entry.bind("<Left>", lambda e: self.adjust_mask_offset_y(-1))
+        self.y_offset_entry.bind("<Right>", lambda e: self.adjust_mask_offset_y(1))
+        self.y_offset_entry.bind("<Up>", lambda e: self.adjust_mask_offset_y(-1))
+        self.y_offset_entry.bind("<Down>", lambda e: self.adjust_mask_offset_y(1))
+
+        # Y offset buttons
+        ttk.Button(
+            y_offset_frame,
+            text="-10",
+            width=3,
+            command=lambda: self.adjust_mask_offset_y(-10),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            y_offset_frame,
+            text="-1",
+            width=3,
+            command=lambda: self.adjust_mask_offset_y(-1),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            y_offset_frame,
+            text="+1",
+            width=3,
+            command=lambda: self.adjust_mask_offset_y(1),
+        ).pack(side=tk.LEFT, padx=1)
+        ttk.Button(
+            y_offset_frame,
+            text="+10",
+            width=3,
+            command=lambda: self.adjust_mask_offset_y(10),
+        ).pack(side=tk.LEFT, padx=1)
+
+        # Y offset slider
         mask_y_scale = ttk.Scale(
-            mask_offset_frame,
+            y_offset_frame,
             from_=-200,
             to=200,
             variable=self.mask_offset_y_var,
             orient=tk.HORIZONTAL,
-            length=40,
+            length=150,
             command=self.on_mask_offset_change,
         )
-        mask_y_scale.pack(side=tk.LEFT, padx=(1, 1))
+        mask_y_scale.pack(side=tk.RIGHT, padx=(10, 0))
 
-        # Y increase button
-        y_inc_btn = ttk.Button(
-            mask_offset_frame,
-            text="▶",
-            width=2,
-            command=lambda: self.adjust_mask_offset_y(1),
+        # Reset and save controls
+        reset_save_frame = ttk.Frame(mask_controls_frame)
+        reset_save_frame.pack(side=tk.TOP, fill=tk.X, pady=(10, 0))
+
+        ttk.Button(
+            reset_save_frame, text="Reset Position", command=self.reset_mask_position
+        ).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(
+            reset_save_frame, text="Save Adjusted Mask", command=self.save_adjusted_mask
+        ).pack(side=tk.LEFT, padx=(0, 5))
+
+        # Arrow key instruction
+        instruction_frame = ttk.Frame(mask_controls_frame)
+        instruction_frame.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
+        instruction_label = ttk.Label(
+            instruction_frame,
+            text="💡 Use arrow keys ← → ↑ ↓ to adjust mask position (1 pixel per press)",
+            font=("Arial", 9),
+            foreground="blue",
         )
-        y_inc_btn.pack(side=tk.LEFT, padx=(1, 5))
+        instruction_label.pack(side=tk.LEFT)
 
         ttk.Button(
             button_frame, text="Create Template", command=self.create_template
@@ -1498,7 +1606,7 @@ class TemplatePreviewWindow:
 
     def add_mask_overlay(self, template_image):
         """
-        Add mask overlay to the template image.
+        Add mask overlay to the template image with improved visualization.
         The mask is already the correct size (779x457) and positioned correctly.
 
         Args:
@@ -1519,12 +1627,15 @@ class TemplatePreviewWindow:
         scaled_mask_width = int(original_mask_width * mask_scale)
         scaled_mask_height = int(original_mask_height * mask_scale)
 
-        # Resize mask to the scaled size
+        # Resize mask to the scaled size with anti-aliasing for smoother edges
         scaled_mask = cv2.resize(
             self.mask_image,
             (scaled_mask_width, scaled_mask_height),
-            interpolation=cv2.INTER_NEAREST,
+            interpolation=cv2.INTER_AREA,  # Better for downscaling, smoother edges
         )
+
+        # Apply Gaussian blur for slight anti-aliasing on white areas
+        scaled_mask = cv2.GaussianBlur(scaled_mask, (3, 3), 0.5)
 
         # Center the scaled mask in the drawing area and apply user offsets
         drawing_x = self.template_maker.drawing_offset_x
@@ -1552,40 +1663,73 @@ class TemplatePreviewWindow:
         actual_height = end_y - actual_start_y
 
         if actual_width > 0 and actual_height > 0:
-            # Create a colored overlay (green with transparency)
+            # Create a colored overlay with enhanced visibility
             overlay = result.copy()
-            overlay[actual_start_y:end_y, actual_start_x:end_x] = [
-                0,
-                255,
-                0,
-            ]  # Green overlay
 
             # Calculate the corresponding region in the scaled mask
-            mask_offset_x = actual_start_x - mask_start_x
-            mask_offset_y = actual_start_y - mask_start_y
+            mask_offset_x_calc = actual_start_x - mask_start_x
+            mask_offset_y_calc = actual_start_y - mask_start_y
             mask_region = scaled_mask[
-                mask_offset_y : mask_offset_y + actual_height,
-                mask_offset_x : mask_offset_x + actual_width,
+                mask_offset_y_calc : mask_offset_y_calc + actual_height,
+                mask_offset_x_calc : mask_offset_x_calc + actual_width,
             ]
 
-            # Apply mask to create semi-transparent overlay
+            # Create better visual overlay with more visible colors
             mask_3ch = cv2.cvtColor(mask_region, cv2.COLOR_GRAY2BGR)
             mask_normalized = mask_3ch.astype(np.float32) / 255.0
 
-            # Blend the overlay with the template
+            # Apply more visible cyan/blue tint where mask is active (better than green)
             template_region = result[actual_start_y:end_y, actual_start_x:end_x].astype(
                 np.float32
             )
-            overlay_region = overlay[actual_start_y:end_y, actual_start_x:end_x].astype(
-                np.float32
-            )
 
-            blended = template_region * (1 - mask_normalized * 0.5) + overlay_region * (
-                mask_normalized * 0.5
-            )
+            # Create cyan overlay with high visibility
+            cyan_overlay = template_region.copy()
+            cyan_overlay[:, :, 0] = np.minimum(
+                255, template_region[:, :, 0] * 1.3
+            )  # Enhance blue
+            cyan_overlay[:, :, 1] = np.minimum(
+                255, template_region[:, :, 1] * 1.2
+            )  # Enhance green
+            cyan_overlay[:, :, 2] = template_region[:, :, 2] * 0.6  # Reduce red
+
+            # Create strong highlight for mask areas
+            highlight_overlay = np.zeros_like(template_region)
+            highlight_overlay[:, :, 0] = 255  # Pure blue channel
+            highlight_overlay[:, :, 1] = 200  # Some green for cyan
+            highlight_overlay[:, :, 2] = 0  # No red
+
+            # Blend the overlays with stronger mask visibility (80% blend)
+            blended = template_region * (
+                1 - mask_normalized * 0.8
+            ) + highlight_overlay * (mask_normalized * 0.8)
             result[actual_start_y:end_y, actual_start_x:end_x] = blended.astype(
                 np.uint8
             )
+
+            # Add thicker, more visible border to show mask bounds
+            if (
+                mask_start_x >= 0
+                and mask_start_y >= 0
+                and end_x <= template_width
+                and end_y <= template_height
+            ):
+                # Draw a thick cyan border around the mask area
+                cv2.rectangle(
+                    result,
+                    (mask_start_x, mask_start_y),
+                    (end_x - 1, end_y - 1),
+                    (255, 255, 0),
+                    3,
+                )  # Cyan border, 3px thick
+                # Add inner border for better definition
+                cv2.rectangle(
+                    result,
+                    (mask_start_x + 1, mask_start_y + 1),
+                    (end_x - 2, end_y - 2),
+                    (200, 200, 200),
+                    1,
+                )  # Light gray inner border
 
         return result
 
@@ -1625,145 +1769,364 @@ class TemplatePreviewWindow:
                 messagebox.showerror("Error", f"Failed to load mask: {e}")
 
     def on_mask_scale_change(self, value=None):
-        """Handle mask scale change."""
-        scale_value = self.mask_scale_var.get()
-        self.mask_scale_label.config(text=f"{scale_value:.1f}x")
-        if self.show_mask_var.get():
-            self.update_preview()
+        """Handle mask scale change with improved precision."""
+        try:
+            # Get value from entry or slider
+            scale_value = self.mask_scale_var.get()
+
+            # Validate and clamp the value
+            scale_value = max(0.1, min(3.0, float(scale_value)))
+
+            # Update both the variable and entry if they don't match
+            if abs(self.mask_scale_var.get() - scale_value) > 0.001:
+                self.mask_scale_var.set(scale_value)
+
+            # Update label with more precision
+            self.mask_scale_label.config(text=f"{scale_value:.3f}x")
+
+            # Update preview if mask is visible
+            if self.show_mask_var.get():
+                self.update_preview()
+
+        except (ValueError, tk.TclError):
+            # Handle invalid input gracefully
+            self.mask_scale_var.set(1.0)
+            self.mask_scale_label.config(text="1.000x")
 
     def on_mask_offset_change(self, value=None):
-        """Handle mask offset change."""
-        if self.show_mask_var.get():
-            self.update_preview()
+        """Handle mask offset change with validation."""
+        try:
+            # Validate X offset
+            x_value = self.mask_offset_x_var.get()
+            x_value = max(-200, min(200, int(x_value)))
+            if self.mask_offset_x_var.get() != x_value:
+                self.mask_offset_x_var.set(x_value)
+
+            # Validate Y offset
+            y_value = self.mask_offset_y_var.get()
+            y_value = max(-200, min(200, int(y_value)))
+            if self.mask_offset_y_var.get() != y_value:
+                self.mask_offset_y_var.set(y_value)
+
+            # Update preview if mask is visible
+            if self.show_mask_var.get():
+                self.update_preview()
+
+        except (ValueError, tk.TclError):
+            # Handle invalid input gracefully
+            pass
 
     def adjust_mask_scale(self, delta):
-        """Adjust mask scale by a small amount."""
+        """Adjust mask scale by a specified amount with better precision."""
         current_scale = self.mask_scale_var.get()
         new_scale = max(0.1, min(3.0, current_scale + delta))
-        self.mask_scale_var.set(new_scale)
+        self.mask_scale_var.set(round(new_scale, 3))  # Round to 3 decimal places
         self.on_mask_scale_change()
+        # Return "break" to prevent default key handling
+        return "break"
 
     def adjust_mask_offset_x(self, delta):
-        """Adjust mask X offset by a small amount."""
+        """Adjust mask X offset by a specified amount."""
         current_x = self.mask_offset_x_var.get()
         new_x = max(-200, min(200, current_x + delta))
         self.mask_offset_x_var.set(new_x)
         self.on_mask_offset_change()
 
+        # Show feedback in window title temporarily
+        old_title = self.window.title()
+        self.window.title(f"Template Preview - X Offset: {new_x}")
+        self.window.after(1000, lambda: self.window.title(old_title))
+
+        # Return "break" to prevent default key handling
+        return "break"
+
     def adjust_mask_offset_y(self, delta):
-        """Adjust mask Y offset by a small amount."""
+        """Adjust mask Y offset by a specified amount."""
         current_y = self.mask_offset_y_var.get()
         new_y = max(-200, min(200, current_y + delta))
         self.mask_offset_y_var.set(new_y)
         self.on_mask_offset_change()
 
+        # Show feedback in window title temporarily
+        old_title = self.window.title()
+        self.window.title(f"Template Preview - Y Offset: {new_y}")
+        self.window.after(1000, lambda: self.window.title(old_title))
+
+        # Return "break" to prevent default key handling
+        return "break"
+
+    def reset_mask_position(self):
+        """Reset mask position and scale to defaults."""
+        self.mask_scale_var.set(1.0)
+        self.mask_offset_x_var.set(0)
+        self.mask_offset_y_var.set(0)
+        self.on_mask_scale_change()
+        self.on_mask_offset_change()
+
     def save_adjusted_mask(self):
-        """Save the adjusted mask with current scale and offset settings."""
+        """Save the adjusted mask with current scale and offset settings - Improved version."""
         if self.mask_image is None:
+            messagebox.showwarning("No Mask", "No mask loaded to save.")
             return
 
-        # Apply the same scaling and positioning logic as in add_mask_overlay
-        mask_scale = self.mask_scale_var.get()
-        original_mask_height, original_mask_width = self.mask_image.shape[:2]
-        scaled_mask_width = int(original_mask_width * mask_scale)
-        scaled_mask_height = int(original_mask_height * mask_scale)
+        try:
+            # Apply the same scaling and positioning logic as in add_mask_overlay
+            mask_scale = self.mask_scale_var.get()
+            original_mask_height, original_mask_width = self.mask_image.shape[:2]
+            scaled_mask_width = int(original_mask_width * mask_scale)
+            scaled_mask_height = int(original_mask_height * mask_scale)
 
-        # Resize mask to the scaled size
-        scaled_mask = cv2.resize(
-            self.mask_image,
-            (scaled_mask_width, scaled_mask_height),
-            interpolation=cv2.INTER_NEAREST,
-        )
+            # Resize mask to the scaled size with anti-aliasing
+            scaled_mask = cv2.resize(
+                self.mask_image,
+                (scaled_mask_width, scaled_mask_height),
+                interpolation=cv2.INTER_AREA,  # Better interpolation for smoother edges
+            )
 
-        # Create a new mask with the exact template drawing area size (779x457)
-        final_mask = np.zeros(
-            (self.template_maker.drawing_height, self.template_maker.drawing_width),
-            dtype=np.uint8,
-        )
+            # Apply slight Gaussian blur for anti-aliasing on white areas
+            scaled_mask = cv2.GaussianBlur(scaled_mask, (3, 3), 0.5)
 
-        # Center the scaled mask in the drawing area and apply user offsets
-        drawing_center_x = self.template_maker.drawing_width // 2
-        drawing_center_y = self.template_maker.drawing_height // 2
+            # Threshold to maintain crisp black/white distinction after blur
+            _, scaled_mask = cv2.threshold(scaled_mask, 127, 255, cv2.THRESH_BINARY)
 
-        # Get user-defined offsets
-        offset_x = self.mask_offset_x_var.get()
-        offset_y = self.mask_offset_y_var.get()
+            # Create a new mask with the exact template drawing area size (779x457)
+            final_mask = np.zeros(
+                (self.template_maker.drawing_height, self.template_maker.drawing_width),
+                dtype=np.uint8,
+            )
 
-        # Calculate the top-left corner of the scaled mask with offsets
-        mask_start_x = drawing_center_x - scaled_mask_width // 2 + offset_x
-        mask_start_y = drawing_center_y - scaled_mask_height // 2 + offset_y
+            # Center the scaled mask in the drawing area and apply user offsets
+            drawing_center_x = self.template_maker.drawing_width // 2
+            drawing_center_y = self.template_maker.drawing_height // 2
 
-        # Calculate the actual area to place the mask
-        end_x = min(mask_start_x + scaled_mask_width, self.template_maker.drawing_width)
-        end_y = min(
-            mask_start_y + scaled_mask_height, self.template_maker.drawing_height
-        )
-        actual_start_x = max(0, mask_start_x)
-        actual_start_y = max(0, mask_start_y)
-        actual_width = end_x - actual_start_x
-        actual_height = end_y - actual_start_y
+            # Get user-defined offsets
+            offset_x = self.mask_offset_x_var.get()
+            offset_y = self.mask_offset_y_var.get()
 
-        if actual_width > 0 and actual_height > 0:
-            # Calculate the corresponding region in the scaled mask
-            mask_offset_x = actual_start_x - mask_start_x
-            mask_offset_y = actual_start_y - mask_start_y
-            mask_region = scaled_mask[
-                mask_offset_y : mask_offset_y + actual_height,
-                mask_offset_x : mask_offset_x + actual_width,
-            ]
+            # Calculate the top-left corner of the scaled mask with offsets
+            mask_start_x = drawing_center_x - scaled_mask_width // 2 + offset_x
+            mask_start_y = drawing_center_y - scaled_mask_height // 2 + offset_y
 
-            # Place the mask region in the final mask
-            final_mask[actual_start_y:end_y, actual_start_x:end_x] = mask_region
+            # Calculate the actual area to place the mask
+            end_x = min(
+                mask_start_x + scaled_mask_width, self.template_maker.drawing_width
+            )
+            end_y = min(
+                mask_start_y + scaled_mask_height, self.template_maker.drawing_height
+            )
+            actual_start_x = max(0, mask_start_x)
+            actual_start_y = max(0, mask_start_y)
+            actual_width = end_x - actual_start_x
+            actual_height = end_y - actual_start_y
 
-        # Save the adjusted mask in the output directory with template name
-        # Get the template name from the parent window
-        template_name = ""
-        if hasattr(self.parent, "template_name_var"):
-            template_name = self.parent.template_name_var.get().strip()
+            if actual_width > 0 and actual_height > 0:
+                # Calculate the corresponding region in the scaled mask
+                mask_offset_x_calc = actual_start_x - mask_start_x
+                mask_offset_y_calc = actual_start_y - mask_start_y
+                mask_region = scaled_mask[
+                    mask_offset_y_calc : mask_offset_y_calc + actual_height,
+                    mask_offset_x_calc : mask_offset_x_calc + actual_width,
+                ]
 
-        if template_name:
-            # Create output directory path (same as template output)
+                # Place the mask region in the final mask
+                final_mask[actual_start_y:end_y, actual_start_x:end_x] = mask_region
+
+            # Save the adjusted mask in the output directory with template name
+            template_name = ""
+            # Try to get template name from main GUI reference first
+            if self.main_gui and hasattr(self.main_gui, "template_name_var"):
+                template_name = self.main_gui.template_name_var.get().strip()
+            # Fallback to parent reference
+            elif hasattr(self.parent, "template_name_var"):
+                template_name = self.parent.template_name_var.get().strip()
+
+            if template_name:
+                # Create output directory path (same as template output)
+                output_dir = Path("data/templates")
+                output_dir.mkdir(parents=True, exist_ok=True)
+
+                # Create mask filename with template name and adjusted suffix
+                mask_filename = (
+                    f"{template_name}_mask.png"  # Use standard name for consistency
+                )
+                mask_path = output_dir / mask_filename
+
+                cv2.imwrite(str(mask_path), final_mask)
+
+                # Update the mask path to point to the new location
+                self.mask_path_var.set(str(mask_path))
+
+                # Show success message with settings
+                settings_info = (
+                    f"Scale: {mask_scale:.3f}x, Offset: ({offset_x}, {offset_y})"
+                )
+                print(f"✅ Adjusted mask saved to: {mask_path}")
+                print(f"🎯 Settings applied: {settings_info}")
+
+                messagebox.showinfo(
+                    "Mask Saved Successfully!",
+                    f"Adjusted mask saved to:\n{mask_filename}\n\nSettings applied:\n{settings_info}",
+                )
+
+                # Store the adjustment settings for metadata
+                self.mask_adjustment_settings = {
+                    "scale": mask_scale,
+                    "offset_x": offset_x,
+                    "offset_y": offset_y,
+                    "original_size": (original_mask_width, original_mask_height),
+                    "final_size": (
+                        self.template_maker.drawing_width,
+                        self.template_maker.drawing_height,
+                    ),
+                }
+
+            else:
+                # Fallback to original behavior if no template name
+                mask_path = self.mask_path_var.get().strip()
+                if mask_path and os.path.exists(mask_path):
+                    original_path = Path(mask_path)
+                    adjusted_path = (
+                        original_path.parent
+                        / f"{original_path.stem}_adjusted{original_path.suffix}"
+                    )
+                    cv2.imwrite(str(adjusted_path), final_mask)
+                    self.mask_path_var.set(str(adjusted_path))
+
+                    settings_info = (
+                        f"Scale: {mask_scale:.3f}x, Offset: ({offset_x}, {offset_y})"
+                    )
+                    print(f"✅ Adjusted mask saved to: {adjusted_path}")
+                    messagebox.showinfo(
+                        "Success",
+                        f"Adjusted mask saved to:\n{adjusted_path.name}\n\nSettings: {settings_info}",
+                    )
+                else:
+                    messagebox.showerror(
+                        "Error", "No valid mask path available for saving."
+                    )
+
+        except Exception as e:
+            print(f"❌ Error saving adjusted mask: {e}")
+            import traceback
+
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Failed to save adjusted mask:\n{str(e)}")
+
+    def create_template(self):
+        """Create template with current settings, save both template and adjusted mask."""
+        try:
+            print("🎯 Creating template with current settings...")
+
+            # Get the template name from main GUI
+            template_name = ""
+            # Try to get template name from main GUI reference first
+            if self.main_gui and hasattr(self.main_gui, "template_name_var"):
+                template_name = self.main_gui.template_name_var.get().strip()
+            # Fallback to parent reference
+            elif hasattr(self.parent, "template_name_var"):
+                template_name = self.parent.template_name_var.get().strip()
+
+            if not template_name:
+                messagebox.showerror("Error", "Template name is required!")
+                return
+
+            # Create the actual template image with current settings
+            template_image = self.template_maker.create_template_image(
+                marker_ids=self.marker_ids,
+                krathong_image=self.krathong_image,
+                scale=self.final_scale,
+                offset_x=self.final_offset_x,
+                offset_y=self.final_offset_y,
+            )
+
+            if template_image is None:
+                messagebox.showerror("Error", "Failed to create template image!")
+                return
+
+            # Save the template image
             output_dir = Path("data/templates")
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Create mask filename with template name and adjusted suffix
-            mask_filename = f"{template_name}_mask_adjusted.png"
-            mask_path = output_dir / mask_filename
+            template_filename = f"{template_name}.png"
+            template_path = output_dir / template_filename
 
-            cv2.imwrite(str(mask_path), final_mask)
+            cv2.imwrite(str(template_path), template_image)
+            print(f"✅ Template image saved to: {template_path}")
 
-            # Update the mask path to point to the new location
-            self.mask_path_var.set(str(mask_path))
-
-            print(f"Adjusted mask saved to: {mask_path}")
-            messagebox.showinfo("Success", f"Adjusted mask saved to:\n{mask_filename}")
-        else:
-            # Fallback to original behavior if no template name
-            mask_path = self.mask_path_var.get().strip()
-            if mask_path and os.path.exists(mask_path):
-                original_path = Path(mask_path)
-                adjusted_path = (
-                    original_path.parent
-                    / f"{original_path.stem}_adjusted{original_path.suffix}"
-                )
-                cv2.imwrite(str(adjusted_path), final_mask)
-                self.mask_path_var.set(str(adjusted_path))
-                print(f"Adjusted mask saved to: {adjusted_path}")
-                messagebox.showinfo(
-                    "Success", f"Adjusted mask saved to:\n{adjusted_path.name}"
-                )
-
-    def create_template(self):
-        """Create template with current settings and save adjusted mask."""
-        try:
             # Save the adjusted mask if mask overlay is enabled and mask exists
+            mask_path = None
             if self.show_mask_var.get() and self.mask_image is not None:
+                print("🎯 Saving adjusted mask with current settings...")
                 self.save_adjusted_mask()
+                mask_path = output_dir / f"{template_name}_mask.png"
+
+            # 🎯 Create and save metadata JSON for CRUD system
+            metadata = {
+                "template_name": template_name,
+                "aruco_ids": self.marker_ids,
+                "template_file": str(template_path),
+                "mask_file": str(mask_path)
+                if mask_path and mask_path.exists()
+                else None,
+                "template_width": self.template_maker.template_width,
+                "template_height": self.template_maker.template_height,
+                "created_at": datetime.now().isoformat(),
+                "marker_positions": {
+                    "top_left": self.marker_ids[0],
+                    "top_right": self.marker_ids[1],
+                    "bottom_left": self.marker_ids[2],
+                    "bottom_right": self.marker_ids[3],
+                },
+                "dictionary_type": "4X4_50",
+                "image_settings": {
+                    "scale": self.final_scale,
+                    "offset_x": self.final_offset_x,
+                    "offset_y": self.final_offset_y,
+                },
+                "mask_settings": getattr(self, "mask_adjustment_settings", None)
+                if self.show_mask_var.get()
+                else None,
+            }
+
+            # Save metadata file
+            metadata_file = output_dir / f"{template_name}_metadata.json"
+            with open(metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+            print(f"✅ Template metadata saved: {metadata_file}")
+            print(f"🎯 ArUco IDs: {self.marker_ids}")
+
+            # Show success message
+            success_message = f"Template created successfully!\n\nFiles saved:\n- Template: {template_filename}"
+            if mask_path and mask_path.exists():
+                success_message += f"\n- Mask: {template_name}_mask.png"
+            success_message += f"\n- Metadata: {template_name}_metadata.json"
+
+            messagebox.showinfo("Template Created!", success_message)
+            print("✅ Template creation completed successfully!")
+
+            # Store the final settings for the parent to access
+            if hasattr(self.parent, "final_template_settings"):
+                self.parent.final_template_settings = {
+                    "template_file": str(template_path),
+                    "mask_file": str(mask_path)
+                    if mask_path and mask_path.exists()
+                    else None,
+                    "image_scale": self.final_scale,
+                    "image_offset_x": self.final_offset_x,
+                    "image_offset_y": self.final_offset_y,
+                    "mask_settings": getattr(self, "mask_adjustment_settings", None),
+                }
 
             self.window.destroy()
+
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save adjusted mask: {e}")
-        self.window.destroy()
+            print(f"❌ Error creating template: {e}")
+            import traceback
+
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Failed to create template:\n{str(e)}")
+            self.window.destroy()
 
 
 class TemplateMarkerGUI:
@@ -2235,6 +2598,7 @@ class TemplateMarkerGUI:
                 image_offset_x=0,  # Default X offset
                 image_offset_y=0,  # Default Y offset
                 mask_path=self.mask_path_var.get().strip() or None,
+                main_gui=self,  # Pass reference to main GUI for template name access
             )
 
             # Wait for window to close, then check if user created template

@@ -127,10 +127,15 @@ class ArUcoDetector:
 
         if template_id:
             self.current_template = template_id
-            self.current_template_config = get_template_config(template_id)
-            self.logger.info(
-                f"Detected template: {template_id} - {self.current_template_config['name']}"
-            )
+            # Use our internal template configs (includes both hardcoded and custom)
+            self.current_template_config = self.template_configs.get(template_id)
+            if self.current_template_config:
+                template_name = self.current_template_config.get("name", template_id)
+                self.logger.info(f"Detected template: {template_id} - {template_name}")
+            else:
+                self.logger.warning(
+                    f"Template {template_id} detected but no config found"
+                )
         else:
             self.logger.warning(f"No template detected for markers: {marker_ids}")
             self.current_template = None
@@ -158,21 +163,31 @@ class ArUcoDetector:
             Path to the template mask file, or None if no template detected
         """
         if self.current_template_config:
-            mask_filename = self.current_template_config["mask_file"]
+            # For custom templates, try using the direct mask_path first
+            if "mask_path" in self.current_template_config:
+                mask_path = Path(self.current_template_config["mask_path"])
+                if mask_path.exists():
+                    return str(mask_path)
 
-            # Try multiple possible paths for both development and executable environments
-            possible_paths = [
-                # Development environment paths
-                Path("data/markers/templates") / mask_filename,
-                Path(__file__).parent.parent.parent
-                / "data/markers/templates"
-                / mask_filename,
-                # Executable environment paths (PyInstaller)
-                Path(sys.executable).parent / "data/markers/templates" / mask_filename,
-                Path(sys.executable).parent
-                / "src/data/markers/templates"
-                / mask_filename,
-            ]
+            # Fallback to mask_file for hardcoded templates
+            if "mask_file" in self.current_template_config:
+                mask_filename = self.current_template_config["mask_file"]
+
+                # Try multiple possible paths for both development and executable environments
+                possible_paths = [
+                    # Development environment paths
+                    Path("data/markers/templates") / mask_filename,
+                    Path(__file__).parent.parent.parent
+                    / "data/markers/templates"
+                    / mask_filename,
+                    # Executable environment paths (PyInstaller)
+                    Path(sys.executable).parent
+                    / "data/markers/templates"
+                    / mask_filename,
+                    Path(sys.executable).parent
+                    / "src/data/markers/templates"
+                    / mask_filename,
+                ]
 
             # Try different naming conventions for each path
             for base_path in possible_paths:
@@ -1326,45 +1341,105 @@ class ArUcoDetector:
 
     def _load_custom_templates(self):
         """
-        Load custom templates from database and merge with hardcoded templates.
+        Load templates from scanner.db and fallback to hardcoded templates.
 
-        This method integrates the CRUD template system with the ArUco detector.
+        Architecture:
+        - Primary: Load from scanner.db
+        - Fallback: Use 3 hardcoded templates if database is empty/missing
         """
         try:
-            # Import template manager (delayed import to avoid circular dependencies)
-            from apps.scanner.template_manager import TemplateManager
+            # Import database components directly
+            from pathlib import Path
 
-            manager = TemplateManager()
+            from database.registry import LocalTemplateRegistry
 
-            # Get template configuration from database
-            custom_config = manager.get_template_config_dict()
-            custom_marker_mapping = manager.get_marker_to_template_dict()
+            # Use scanner.db from project root
+            db_path = Path(__file__).parent.parent.parent / "scanner.db"
+            registry = LocalTemplateRegistry(str(db_path))
 
-            # Merge with existing hardcoded templates
-            self.template_configs.update(custom_config)
-            self.marker_to_template.update(custom_marker_mapping)
+            # Get templates from database
+            templates = registry.get_templates()
 
-            # Log statistics
-            stats = manager.get_statistics()
-            self.logger.info(
-                f"🎯 Loaded custom templates: {stats['custom_templates']} custom + {stats['hardcoded_templates']} hardcoded"
-            )
-            self.logger.info(
-                f"📊 Total templates: {stats['total_templates'] + stats['hardcoded_templates']}"
-            )
-            self.logger.info(f"🎯 Available marker IDs: {stats['available_markers']}")
+            if templates:
+                # Load templates from database
+                for template in templates:
+                    if template.is_active:
+                        # Create template config that matches hardcoded template structure
+                        template_config = {
+                            "name": template.name,
+                            "description": f"Custom template: {template.name}",
+                            "markers": template.marker_ids,
+                            "marker_ids": template.marker_ids,  # For compatibility
+                            "image_path": template.image_path,
+                            "mask_path": template.mask_path,
+                            "mask_file": Path(
+                                template.mask_path
+                            ).name,  # Just filename for compatibility
+                            "template_width": template.template_width,
+                            "template_height": template.template_height,
+                        }
 
-        except ImportError as e:
-            self.logger.warning(f"⚠️ Could not import template manager: {e}")
+                        # Add to configurations
+                        self.template_configs[template.name] = template_config
+
+                        # Add marker mappings
+                        for marker_id in template.marker_ids:
+                            self.marker_to_template[marker_id] = template.name
+
+                self.logger.info(
+                    f"🎯 Loaded {len(templates)} custom templates from scanner.db"
+                )
+
+            else:
+                # Fallback: Log that we're using hardcoded templates
+                self.logger.info(
+                    "📋 No custom templates found in scanner.db, using hardcoded templates"
+                )
+
+            # Always log available templates
+            total_templates = len(self.template_configs)
+            total_markers = len(self.marker_to_template)
+            self.logger.info(f"📊 Total available templates: {total_templates}")
+            self.logger.info(f"🎯 Total marker mappings: {total_markers}")
+
         except Exception as e:
-            self.logger.warning(f"⚠️ Failed to load custom templates: {e}")
+            self.logger.warning(f"⚠️ Failed to load from scanner.db: {e}")
+            self.logger.info("📋 Using hardcoded templates only")
 
     def reload_custom_templates(self):
         """
-        Reload custom templates from database.
+        Reload templates from scanner.db.
 
         Call this method when templates are added/modified through CRUD operations.
         """
-        self.logger.info("🔄 Reloading custom templates...")
+        self.logger.info("🔄 Reloading templates from scanner.db...")
+
+        # Clear existing custom templates (keep hardcoded ones)
+        # Remove custom templates from configs and marker mappings
+        custom_templates_to_remove = []
+        for template_name, config in self.template_configs.items():
+            if template_name not in [
+                "krathong1",
+                "krathong2",
+                "krathong3",
+                "krathong4",
+                "krathong5",
+            ]:
+                custom_templates_to_remove.append(template_name)
+
+        for template_name in custom_templates_to_remove:
+            if template_name in self.template_configs:
+                # Remove marker mappings for this template
+                markers_to_remove = []
+                for marker_id, template in self.marker_to_template.items():
+                    if template == template_name:
+                        markers_to_remove.append(marker_id)
+                for marker_id in markers_to_remove:
+                    del self.marker_to_template[marker_id]
+
+                # Remove template config
+                del self.template_configs[template_name]
+
+        # Reload from database
         self._load_custom_templates()
-        self.logger.info("✅ Custom templates reloaded")
+        self.logger.info("✅ Templates reloaded from scanner.db")

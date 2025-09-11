@@ -28,14 +28,20 @@ class TemplateManager:
     - File system management
     """
 
-    def __init__(self, db_path: str = "scanner.db"):
+    def __init__(self, db_path: str = None):
         """
         Initialize template manager.
 
         Args:
-            db_path: Path to SQLite database
+            db_path: Path to SQLite database (defaults to scanner.db in project root)
         """
         self.logger = logging.getLogger(__name__)
+
+        # Default to scanner.db in project root
+        if db_path is None:
+            project_root = Path(__file__).parent.parent.parent
+            db_path = str(project_root / "scanner.db")
+
         self.db_path = db_path
         self.registry = LocalTemplateRegistry(db_path)
         self.template_dir = Path("data/markers/templates")
@@ -109,12 +115,31 @@ class TemplateManager:
                 if not self.validate_marker_ids(marker_ids):
                     raise ValueError("Invalid or conflicting marker IDs")
 
+            # 🎯 Copy mask file to scanner's expected location
+            scanner_mask_dir = Path("data/markers/templates")
+            scanner_mask_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate unique mask filename to avoid conflicts
+            mask_filename = f"{name}_mask.png"
+            scanner_mask_path = scanner_mask_dir / mask_filename
+
+            # Copy mask file to scanner location
+            import shutil
+
+            shutil.copy2(mask_file, scanner_mask_path)
+            self.logger.info(
+                f"📁 Copied mask file to scanner location: {scanner_mask_path}"
+            )
+
+            # Update mask path to point to scanner location
+            final_mask_path = str(scanner_mask_path)
+
             # Create template data
             template_data = TemplateData(
                 name=name,
                 marker_ids=marker_ids,
                 image_path=template_file,
-                mask_path=mask_file,
+                mask_path=final_mask_path,  # Use scanner location
                 template_width=template_width,
                 template_height=template_height,
                 is_active=True,
