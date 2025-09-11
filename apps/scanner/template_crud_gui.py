@@ -17,14 +17,122 @@ from database.models import TemplateData
 class TemplateManagementGUI:
     """Simple GUI for template CRUD operations."""
 
-    def __init__(self):
-        self.manager = TemplateManager()
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path
+        self.manager = None
         self.root = tk.Tk()
         self.root.title("KrathongScanner - Template Management")
         self.root.geometry("900x600")
 
+        # Initialize database connection
+        self._initialize_database()
+
         self.setup_gui()
         self.refresh_template_list()
+
+    def _initialize_database(self):
+        """Initialize database connection with fallback to selection."""
+        try:
+            if self.db_path:
+                # Use provided database path
+                self.manager = TemplateManager(self.db_path)
+                print(f"✅ Connected to database: {self.db_path}")
+            else:
+                # Try default database path
+                default_db_path = (
+                    Path(__file__).parent.parent.parent / "data" / "db" / "scanner.db"
+                )
+                if default_db_path.exists():
+                    self.manager = TemplateManager(str(default_db_path))
+                    self.db_path = str(default_db_path)
+                    print(f"✅ Connected to default database: {default_db_path}")
+                else:
+                    # Show database selection dialog
+                    self._show_database_selection()
+        except Exception as e:
+            print(f"❌ Database initialization error: {e}")
+            self._show_database_selection()
+
+    def _show_database_selection(self):
+        """Show database selection dialog."""
+        choice = messagebox.askyesnocancel(
+            "Database Selection",
+            "Scanner database not found!\n\n"
+            "Would you like to:\n"
+            "• Yes: Select existing database file\n"
+            "• No: Create new database\n"
+            "• Cancel: Exit program",
+        )
+
+        if choice is True:
+            # Select existing database
+            self._select_database_file()
+        elif choice is False:
+            # Create new database
+            self._create_new_database()
+        else:
+            # Cancel - exit program
+            print("❌ No database selected. Exiting...")
+            self.root.destroy()
+            exit(1)
+
+    def _select_database_file(self):
+        """Allow user to select an existing database file."""
+        db_file = filedialog.askopenfilename(
+            title="Select Scanner Database File",
+            filetypes=[("SQLite Database", "*.db"), ("All Files", "*.*")],
+            initialdir=str(Path(__file__).parent.parent.parent / "data" / "db"),
+        )
+
+        if db_file:
+            try:
+                self.manager = TemplateManager(db_file)
+                self.db_path = db_file
+                print(f"✅ Connected to selected database: {db_file}")
+
+                # Update GUI
+                self.db_label.config(text=Path(db_file).name)
+                self.refresh_template_list()
+
+                messagebox.showinfo(
+                    "Success", f"Connected to database:\n{Path(db_file).name}"
+                )
+            except Exception as e:
+                messagebox.showerror(
+                    "Database Error", f"Failed to connect to database:\n{str(e)}"
+                )
+
+    def _create_new_database(self):
+        """Create a new database file."""
+        db_file = filedialog.asksaveasfilename(
+            title="Create New Scanner Database",
+            defaultextension=".db",
+            filetypes=[("SQLite Database", "*.db"), ("All Files", "*.*")],
+            initialdir=str(Path(__file__).parent.parent.parent / "data" / "db"),
+            initialfile="scanner.db",
+        )
+
+        if db_file:
+            try:
+                # Create directory if it doesn't exist
+                Path(db_file).parent.mkdir(parents=True, exist_ok=True)
+
+                # Create new database
+                self.manager = TemplateManager(db_file)
+                self.db_path = db_file
+                print(f"✅ Created new database: {db_file}")
+
+                # Update GUI
+                self.db_label.config(text=Path(db_file).name)
+                self.refresh_template_list()
+
+                messagebox.showinfo(
+                    "Success", f"Created new database:\n{Path(db_file).name}"
+                )
+            except Exception as e:
+                messagebox.showerror(
+                    "Database Error", f"Failed to create database:\n{str(e)}"
+                )
 
     def setup_gui(self):
         """Setup the GUI interface."""
@@ -35,7 +143,9 @@ class TemplateManagementGUI:
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        main_frame.columnconfigure(0, weight=1)  # Template list column
+        main_frame.columnconfigure(1, weight=2)  # Details column (wider)
+        main_frame.columnconfigure(2, weight=1)  # Database/Actions column
         main_frame.rowconfigure(1, weight=1)
 
         # Title
@@ -46,7 +156,7 @@ class TemplateManagementGUI:
 
         # Left panel - Template list
         list_frame = ttk.LabelFrame(main_frame, text="📋 Templates", padding="10")
-        list_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 10))
+        list_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
         list_frame.rowconfigure(0, weight=1)
         list_frame.columnconfigure(0, weight=1)
 
@@ -72,11 +182,54 @@ class TemplateManagementGUI:
         )
         refresh_btn.grid(row=1, column=0, pady=(10, 0))
 
-        # Right panel - Details and actions
+        # Middle panel - Template Details
         details_frame = ttk.LabelFrame(
             main_frame, text="📝 Template Details", padding="10"
         )
-        details_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
+        details_frame.grid(
+            row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 5)
+        )
+        details_frame.columnconfigure(1, weight=1)
+
+        # Right panel - Database Management & Actions
+        right_panel = ttk.Frame(main_frame)
+        right_panel.grid(row=1, column=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+
+        # Database management section
+        db_frame = ttk.LabelFrame(right_panel, text="🗃️ Database", padding="10")
+        db_frame.pack(fill=tk.X, pady=(0, 10))
+
+        # Database status
+        ttk.Label(db_frame, text="Connected to:", font=("Arial", 9, "bold")).pack(
+            anchor=tk.W
+        )
+        self.db_label = ttk.Label(
+            db_frame,
+            text=Path(self.db_path).name if self.db_path else "No database",
+            font=("Arial", 9),
+            foreground="blue",
+            wraplength=150,
+        )
+        self.db_label.pack(anchor=tk.W, pady=(2, 10))
+
+        # Database controls
+        ttk.Button(
+            db_frame,
+            text="Select Database",
+            command=self._select_database_file,
+            width=18,
+        ).pack(fill=tk.X, pady=(0, 5))
+
+        ttk.Button(
+            db_frame,
+            text="Create New Database",
+            command=self._create_new_database,
+            width=18,
+        ).pack(fill=tk.X, pady=(0, 5))
+
+        # Actions section
+        actions_frame = ttk.LabelFrame(right_panel, text="⚡ Actions", padding="10")
+        actions_frame.pack(fill=tk.X, pady=(0, 10))
         details_frame.columnconfigure(1, weight=1)
 
         # Template details
@@ -131,50 +284,46 @@ class TemplateManagementGUI:
             row=4, column=1, sticky=(tk.W, tk.E), padx=(10, 0), pady=(10, 0)
         )
 
-        # Action buttons
-        action_frame = ttk.LabelFrame(main_frame, text="🛠️ Actions", padding="10")
-        action_frame.grid(row=1, column=2, sticky=(tk.W, tk.E, tk.N), padx=(10, 0))
-
         # Import from metadata
         import_btn = ttk.Button(
-            action_frame, text="📥 Import from Metadata", command=self.import_template
+            actions_frame, text="📥 Import from Metadata", command=self.import_template
         )
-        import_btn.pack(fill=tk.X, pady=(0, 10))
+        import_btn.pack(fill=tk.X, pady=(0, 5))
 
         # Create new template
         create_btn = ttk.Button(
-            action_frame, text="➕ Create New Template", command=self.create_template
+            actions_frame, text="➕ Create New Template", command=self.create_template
         )
-        create_btn.pack(fill=tk.X, pady=(0, 10))
+        create_btn.pack(fill=tk.X, pady=(0, 5))
 
         # Toggle active status
         self.toggle_btn = ttk.Button(
-            action_frame, text="🔄 Toggle Active", command=self.toggle_template_status
+            actions_frame, text="🔄 Toggle Active", command=self.toggle_template_status
         )
-        self.toggle_btn.pack(fill=tk.X, pady=(0, 10))
+        self.toggle_btn.pack(fill=tk.X, pady=(0, 5))
 
         # Delete template
         self.delete_btn = ttk.Button(
-            action_frame, text="🗑️ Delete Template", command=self.delete_template
+            actions_frame, text="🗑️ Delete Template", command=self.delete_template
         )
-        self.delete_btn.pack(fill=tk.X, pady=(0, 10))
+        self.delete_btn.pack(fill=tk.X, pady=(0, 5))
 
         # Separator
-        ttk.Separator(action_frame, orient="horizontal").pack(fill=tk.X, pady=(10, 10))
+        ttk.Separator(actions_frame, orient="horizontal").pack(fill=tk.X, pady=(10, 10))
 
         # Statistics
         stats_btn = ttk.Button(
-            action_frame, text="📊 View Statistics", command=self.show_statistics
+            actions_frame, text="📊 View Statistics", command=self.show_statistics
         )
-        stats_btn.pack(fill=tk.X, pady=(0, 10))
+        stats_btn.pack(fill=tk.X, pady=(0, 5))
 
         # Available markers
         markers_btn = ttk.Button(
-            action_frame,
+            actions_frame,
             text="🎯 Available Markers",
             command=self.show_available_markers,
         )
-        markers_btn.pack(fill=tk.X, pady=(0, 10))
+        markers_btn.pack(fill=tk.X, pady=(0, 5))
 
         # Initially disable action buttons
         self.toggle_btn.config(state="disabled")
