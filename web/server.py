@@ -239,31 +239,35 @@ def setup_auto_detector():
     """Initialize the auto directory detector"""
     global auto_detector, auto_detector_thread, stop_monitoring
 
-    if auto_detector is None:
-        # Prefer enhanced pipeline: detect paper -> detect aruco -> apply mask
-        try:
-            auto_detector = EnhancedAutoDirectoryDetector(
-                input_directory=UPLOAD_FOLDER,
-                output_directory=RESULTS_FOLDER,
-                check_interval=2.0,
-                use_document_detection=True,
-            )
-            print("✅ Enhanced auto-directory detector initialized")
-        except Exception as e:
-            print(
-                f"⚠️ Enhanced detector unavailable ({e}), falling back to legacy detector"
-            )
-            auto_detector = AutoDirectoryDetector(
-                input_directory=UPLOAD_FOLDER,
-                output_directory=RESULTS_FOLDER,
-                use_homography=True,
-            )
+    # COMMENTED OUT: Auto-detector creates duplicate files
+    # Only use manual processing pipeline to avoid duplicate outputs
+    print("🚫 Auto-directory detector disabled to prevent duplicate file creation")
 
-        # Start monitoring in a separate thread
-        stop_monitoring = False
-        auto_detector_thread = threading.Thread(target=monitor_directory, daemon=True)
-        auto_detector_thread.start()
-        print("✅ Auto-directory detector started")
+    # if auto_detector is None:
+    #     # Prefer enhanced pipeline: detect paper -> detect aruco -> apply mask
+    #     try:
+    #         auto_detector = EnhancedAutoDirectoryDetector(
+    #             input_directory=UPLOAD_FOLDER,
+    #             output_directory=RESULTS_FOLDER,
+    #             check_interval=2.0,
+    #             use_document_detection=True,
+    #         )
+    #         print("✅ Enhanced auto-directory detector initialized")
+    #     except Exception as e:
+    #         print(
+    #             f"⚠️ Enhanced detector unavailable ({e}), falling back to legacy detector"
+    #         )
+    #         auto_detector = AutoDirectoryDetector(
+    #             input_directory=UPLOAD_FOLDER,
+    #             output_directory=RESULTS_FOLDER,
+    #             use_homography=True,
+    #         )
+
+    #     # Start monitoring in a separate thread
+    #     stop_monitoring = False
+    #     auto_detector_thread = threading.Thread(target=monitor_directory, daemon=True)
+    #     auto_detector_thread.start()
+    #     print("✅ Auto-directory detector started")
 
 
 def process_uploaded_file(job_id, filepath):
@@ -279,17 +283,58 @@ def process_uploaded_file(job_id, filepath):
         print(f"🔄 Processing {job.filename}...")
 
         # Import ArUco detector
+        import os
         import sys
         from pathlib import Path
 
-        # Add src directory to path
-        src_path = Path(__file__).parent.parent / "src"
-        if str(src_path) not in sys.path:
-            sys.path.insert(0, str(src_path))
+        # Add src directory to path more reliably
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        src_path = os.path.join(project_root, "src")
 
-        from aruco_detector.detector import ArUcoDetector
-        from enhanced_rectangle_cropper import detect_and_crop_rectangle_enhanced
-        from paper_detector import PaperDetector
+        # FIXED: Also add project root for database imports
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+            print(f"🔧 Added project root: {project_root}")
+
+        if src_path not in sys.path:
+            sys.path.insert(0, src_path)
+            print(f"🔧 Added src path: {src_path}")
+
+        # Try importing with error handling
+        try:
+            from aruco_detector.detector import ArUcoDetector
+
+            print("✅ ArUcoDetector imported successfully")
+        except ImportError as e:
+            print(f"❌ Failed to import ArUcoDetector: {e}")
+            # Try alternative import path
+            sys.path.insert(0, project_root)
+            from src.aruco_detector.detector import ArUcoDetector
+
+            print("✅ ArUcoDetector imported with alternative path")
+
+        try:
+            from enhanced_rectangle_cropper import detect_and_crop_rectangle_enhanced
+
+            print("✅ Enhanced rectangle cropper imported successfully")
+        except ImportError as e:
+            print(f"❌ Failed to import enhanced_rectangle_cropper: {e}")
+            from src.enhanced_rectangle_cropper import (
+                detect_and_crop_rectangle_enhanced,
+            )
+
+            print("✅ Enhanced rectangle cropper imported with alternative path")
+
+        try:
+            from paper_detector import PaperDetector
+
+            print("✅ PaperDetector imported successfully")
+        except ImportError as e:
+            print(f"❌ Failed to import PaperDetector: {e}")
+            from src.paper_detector import PaperDetector
+
+            print("✅ PaperDetector imported with alternative path")
 
         # Initialize detectors
         detector = ArUcoDetector()
@@ -1371,7 +1416,9 @@ if __name__ == "__main__":
 
         # Setup auto detector
         print("� Setting up auto-directory processing...")
-        setup_auto_detector()
+        # COMMENTED OUT: Auto-detector creates duplicate files
+        # setup_auto_detector()
+        print("🚫 Auto-directory detector disabled to prevent duplicate file creation")
 
         # Start Flask server first (local server only)
         print("🌐 Starting local web server...")

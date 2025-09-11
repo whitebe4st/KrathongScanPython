@@ -491,7 +491,8 @@ def detect_and_crop_inner_rectangle(
         return None, None
 
     # Use the same perspective transformation as the original
-    from src.rectangle_cropper import warp_rectangle
+    # FIXED: Use relative import instead of src.module
+    from rectangle_cropper import warp_rectangle
 
     return warp_rectangle(image, contour), contour
 
@@ -510,7 +511,8 @@ def detect_and_crop_rectangle_enhanced(
         return inner_cropped, inner_contour
 
     # Fallback to original outer rectangle detection
-    from src.rectangle_cropper import detect_and_crop_rectangle
+    # FIXED: Use relative import instead of src.module
+    from rectangle_cropper import detect_and_crop_rectangle
 
     outer_cropped, outer_contour = detect_and_crop_rectangle(image)
     if outer_cropped is not None:
