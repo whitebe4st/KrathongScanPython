@@ -2,13 +2,13 @@
 """
 Scanner Database Editor
 
-This is the CRUD interface for editing the scanner's template database (scanner.db).
+This is the CRUD interface for editing the scanner's template database (data/db/scanner.db).
 The scanner will automatically load templates from this database, with fallback to hardcoded templates.
 
 Architecture:
-- scanner.db: Primary template storage for the scanner
+- data/db/scanner.db: Primary template storage for the scanner
 - Hardcoded templates: Fallback when database is empty
-- This tool: Database editor for scanner.db
+- This tool: Database editor for data/db/scanner.db
 """
 
 import sys
@@ -23,7 +23,7 @@ if __name__ == "__main__":
         from apps.scanner.template_crud_gui import TemplateManagementGUI
 
         print("🗃️  Starting Scanner Database Editor...")
-        print("📊 This tool edits the scanner's template database (scanner.db)")
+        print("📊 This tool edits the scanner's template database (data/db/scanner.db)")
         print("🎯 The scanner will automatically load templates from this database")
         print("📋 Fallback to hardcoded templates if database is empty")
         print("-" * 60)

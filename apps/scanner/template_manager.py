@@ -33,14 +33,14 @@ class TemplateManager:
         Initialize template manager.
 
         Args:
-            db_path: Path to SQLite database (defaults to scanner.db in project root)
+            db_path: Path to SQLite database (defaults to data/db/scanner.db)
         """
         self.logger = logging.getLogger(__name__)
 
-        # Default to scanner.db in project root
+        # Default to scanner.db in data/db/ directory
         if db_path is None:
             project_root = Path(__file__).parent.parent.parent
-            db_path = str(project_root / "scanner.db")
+            db_path = str(project_root / "data" / "db" / "scanner.db")
 
         self.db_path = db_path
         self.registry = LocalTemplateRegistry(db_path)

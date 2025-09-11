@@ -6,9 +6,9 @@ The KrathongScanner now uses a clean, simplified database architecture where the
 
 ## Architecture Components
 
-### 1. Scanner Database (`scanner.db`)
+### 1. Scanner Database (`data/db/scanner.db`)
 
-- **Location**: Project root (`G:\MotionSix\KrathongScanner\scanner.db`)
+- **Location**: `data/db/scanner.db` (organized in data directory)
 - **Purpose**: Primary storage for custom templates
 - **Managed by**: CRUD interface (`run_template_crud.py`)
 - **Used by**: Scanner's ArUco detector
@@ -25,7 +25,7 @@ The KrathongScanner now uses a clean, simplified database architecture where the
 - **Tool**: `run_template_crud.py`
 - **Purpose**: Edit scanner's template database
 - **Features**: Add, edit, delete, import/export templates
-- **Target**: Works directly with `scanner.db`
+- **Target**: Works directly with `data/db/scanner.db`
 
 ## How It Works
 

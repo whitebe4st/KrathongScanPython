@@ -1353,8 +1353,8 @@ class ArUcoDetector:
 
             from database.registry import LocalTemplateRegistry
 
-            # Use scanner.db from project root
-            db_path = Path(__file__).parent.parent.parent / "scanner.db"
+            # Use scanner.db from data/db/ directory
+            db_path = Path(__file__).parent.parent.parent / "data" / "db" / "scanner.db"
             registry = LocalTemplateRegistry(str(db_path))
 
             # Get templates from database

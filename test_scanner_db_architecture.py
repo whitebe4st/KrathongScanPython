@@ -3,7 +3,7 @@
 Test Scanner Database Architecture
 
 Tests the new architecture where:
-1. Scanner loads templates from scanner.db
+1. Scanner loads templates from data/db/scanner.db
 2. Falls back to hardcoded templates if database is empty
 3. CRUD acts as database editor
 """
@@ -38,7 +38,7 @@ def test_scanner_database_architecture():
     # List templates in database
     templates = manager.read_all_templates()
     if templates:
-        print(f"\n📝 Templates in scanner.db:")
+        print(f"\n📝 Templates in data/db/scanner.db:")
         for template in templates:
             status = "✅ Active" if template.is_active else "❌ Inactive"
             print(f"   - {template.name}: markers {template.marker_ids} ({status})")
@@ -94,7 +94,7 @@ def test_scanner_database_architecture():
 
     print(f"\n🎉 Architecture test completed!")
     print(f"📊 Summary:")
-    print(f"   - Database: scanner.db")
+    print(f"   - Database: data/db/scanner.db")
     print(f"   - Custom templates: {len(db_templates)}")
     print(f"   - Hardcoded fallback: {len(hardcoded_templates)} templates")
     print(f"   - Total available: {len(detector.template_configs)} templates")
