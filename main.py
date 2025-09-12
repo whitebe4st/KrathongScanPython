@@ -8,6 +8,7 @@ Everything is accessible from one main window.
 
 import argparse
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -51,12 +52,11 @@ class SimplifiedKrathongScannerUI:
         # Auto directory state
         self.auto_directory_running = False
         self.auto_directory_thread = None
+        self.auto_directory_stop_flag = threading.Event()  # For stopping auto directory
 
         # Web server state
         self.web_server_running = False
-        self.web_server_process = None
-
-        # Setup logger
+        self.web_server_process = None  # Setup logger
         self.logger = setup_logger()
 
         # Center window
@@ -896,19 +896,130 @@ class SimplifiedKrathongScannerUI:
             # Stop web server
             try:
                 if self.web_server_process:
-                    self.web_server_process.terminate()
+                    self.logger.info(
+                        "Terminating web server process and child processes..."
+                    )
+
+                    # Kill all related processes (Flask + InstaTunnel)
+                    self._kill_web_server_processes()
+
                     self.web_server_process = None
+                    self.logger.info("Web server and related processes terminated")
 
                 self.web_server_running = False
                 self.server_btn.config(text="🌐 Start Web Server", bg="#e74c3c")
                 self.update_status("Web server stopped", False)
                 messagebox.showinfo(
-                    "Web Server Stopped", "Web server has been stopped."
+                    "Web Server Stopped", "Web server and tunnel have been stopped."
                 )
 
             except Exception as e:
                 self.logger.error(f"Error stopping web server: {e}")
                 self.update_status(f"Error stopping web server: {str(e)}", False)
+
+    def _kill_web_server_processes(self):
+        """Kill all web server related processes including InstaTunnel."""
+        try:
+            # First, try to terminate the main process gracefully
+            if self.web_server_process:
+                self.web_server_process.terminate()
+                try:
+                    self.web_server_process.wait(timeout=3.0)
+                except subprocess.TimeoutExpired:
+                    self.web_server_process.kill()
+
+            # On Windows, use taskkill to kill related processes
+            if os.name == "nt":  # Windows
+                self.logger.info("Killing web server related processes on Windows...")
+
+                # Kill Python processes running server.py
+                try:
+                    subprocess.run(
+                        [
+                            "taskkill",
+                            "/f",
+                            "/im",
+                            "python.exe",
+                            "/fi",
+                            "WINDOWTITLE eq *server.py*",
+                        ],
+                        capture_output=True,
+                        timeout=5,
+                    )
+                except:
+                    pass
+
+                # Kill InstaTunnel processes (Node.js)
+                try:
+                    subprocess.run(
+                        [
+                            "taskkill",
+                            "/f",
+                            "/im",
+                            "node.exe",
+                            "/fi",
+                            "WINDOWTITLE eq *instatunnel*",
+                        ],
+                        capture_output=True,
+                        timeout=5,
+                    )
+                except:
+                    pass
+
+                # Kill any process listening on port 5000
+                try:
+                    # Find processes using port 5000
+                    result = subprocess.run(
+                        ["netstat", "-ano", "|", "findstr", ":5000"],
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+
+                    if result.stdout:
+                        lines = result.stdout.strip().split("\n")
+                        pids = set()
+                        for line in lines:
+                            parts = line.split()
+                            if len(parts) > 4 and parts[1].endswith(":5000"):
+                                pid = parts[-1]
+                                if pid.isdigit():
+                                    pids.add(pid)
+
+                        # Kill processes by PID
+                        for pid in pids:
+                            try:
+                                subprocess.run(
+                                    ["taskkill", "/f", "/pid", pid],
+                                    capture_output=True,
+                                    timeout=5,
+                                )
+                                self.logger.info(
+                                    f"Killed process PID {pid} using port 5000"
+                                )
+                            except:
+                                pass
+
+                except Exception as e:
+                    self.logger.warning(f"Could not kill port 5000 processes: {e}")
+
+            else:
+                # Unix/Linux fallback
+                try:
+                    subprocess.run(
+                        ["pkill", "-f", "server.py"], capture_output=True, timeout=5
+                    )
+                    subprocess.run(
+                        ["pkill", "-f", "instatunnel"], capture_output=True, timeout=5
+                    )
+                except:
+                    pass
+
+            self.logger.info("Web server process cleanup completed")
+
+        except Exception as e:
+            self.logger.error(f"Error killing web server processes: {e}")
 
     def start_auto_directory(self):
         """Start or stop auto directory monitoring."""
@@ -939,20 +1050,41 @@ class SimplifiedKrathongScannerUI:
 
                 def run_auto_directory():
                     try:
-                        from src.auto_directory_detector import (
-                            run_auto_directory_detection,
-                        )
+                        from src.auto_directory_detector import AutoDirectoryDetector
 
                         self.logger.info(
                             f"Auto directory monitoring: {self.auto_input_dir} -> {self.auto_output_dir}"
                         )
-                        run_auto_directory_detection(
-                            input_dir=self.auto_input_dir,
-                            output_dir=self.auto_output_dir,
+
+                        # Create detector instance
+                        detector = AutoDirectoryDetector(
+                            input_directory=self.auto_input_dir,
+                            output_directory=self.auto_output_dir,
                             check_interval=2.0,
                             use_homography=True,
                             use_rectangle_detection=False,
                         )
+
+                        self.logger.info(
+                            "Auto directory detector initialized, starting monitoring loop..."
+                        )
+
+                        # Custom monitoring loop that respects our stop flag
+                        detector.stats["start_time"] = time.time()
+
+                        # Initial scan
+                        detector.scan_and_process()
+
+                        # Continuous monitoring with stop flag checking
+                        while not self.auto_directory_stop_flag.wait(
+                            detector.check_interval
+                        ):
+                            if not self.auto_directory_running:
+                                break
+                            detector.scan_and_process()
+
+                        self.logger.info("Auto directory monitoring stopped")
+
                     except Exception as e:
                         self.logger.error(f"Auto directory error: {e}")
                         self.root.after(
@@ -994,6 +1126,15 @@ class SimplifiedKrathongScannerUI:
         else:
             # Stop auto directory
             self.auto_directory_running = False
+            self.auto_directory_stop_flag.set()  # Signal the thread to stop
+
+            # Wait a moment for the thread to stop gracefully
+            if self.auto_directory_thread and self.auto_directory_thread.is_alive():
+                self.auto_directory_thread.join(timeout=3.0)
+
+            # Reset the stop flag for next time
+            self.auto_directory_stop_flag.clear()
+
             self.auto_dir_btn.config(text="📁 Auto Directory", bg="#9b59b6")
             self.update_status("Auto directory monitoring stopped", False)
             messagebox.showinfo(
