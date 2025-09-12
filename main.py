@@ -45,6 +45,16 @@ class SimplifiedKrathongScannerUI:
         # Configuration settings
         self.web_output_dir = str(Path(__file__).parent / "web" / "results")
         self.webcam_output_dir = str(Path(__file__).parent / "data" / "webcam_captures")
+        self.auto_input_dir = str(Path(__file__).parent / "data" / "auto_input")
+        self.auto_output_dir = str(Path(__file__).parent / "data" / "auto_output")
+
+        # Auto directory state
+        self.auto_directory_running = False
+        self.auto_directory_thread = None
+
+        # Web server state
+        self.web_server_running = False
+        self.web_server_process = None
 
         # Setup logger
         self.logger = setup_logger()
@@ -170,6 +180,22 @@ class SimplifiedKrathongScannerUI:
         )
         self.server_btn.grid(row=0, column=1, padx=(15, 0))
 
+        # Auto Directory button
+        self.auto_dir_btn = tk.Button(
+            button_frame,
+            text="📁 Auto Directory",
+            font=("Arial", 14, "bold"),
+            bg="#9b59b6",
+            fg="white",
+            relief=tk.RAISED,
+            borderwidth=2,
+            padx=30,
+            pady=15,
+            command=self.start_auto_directory,
+            cursor="hand2",
+        )
+        self.auto_dir_btn.grid(row=1, column=0, columnspan=2, pady=(15, 0))
+
     def create_config_section(self, parent):
         """Create the configuration section."""
         config_frame = tk.LabelFrame(
@@ -214,6 +240,78 @@ class SimplifiedKrathongScannerUI:
             padx=10,
             pady=2,
             command=self.choose_web_output_dir,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT)
+
+        # Auto Directory input setting
+        auto_input_dir_frame = tk.Frame(config_frame, bg="#f0f0f0")
+        auto_input_dir_frame.pack(fill=tk.X, pady=2)
+
+        tk.Label(
+            auto_input_dir_frame,
+            text="📂 Auto Input Dir:",
+            font=("Arial", 9),
+            bg="#f0f0f0",
+            fg="#2c3e50",
+        ).pack(side=tk.LEFT)
+
+        self.auto_input_dir_var = tk.StringVar(value=self.auto_input_dir)
+        self.auto_input_dir_entry = tk.Entry(
+            auto_input_dir_frame,
+            textvariable=self.auto_input_dir_var,
+            font=("Arial", 9),
+            width=50,
+            state="readonly",
+        )
+        self.auto_input_dir_entry.pack(
+            side=tk.LEFT, padx=(10, 5), fill=tk.X, expand=True
+        )
+
+        tk.Button(
+            auto_input_dir_frame,
+            text="📁 Choose",
+            font=("Arial", 8),
+            bg="#9b59b6",
+            fg="white",
+            padx=10,
+            pady=2,
+            command=self.choose_auto_input_dir,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT)
+
+        # Auto Directory output setting
+        auto_output_dir_frame = tk.Frame(config_frame, bg="#f0f0f0")
+        auto_output_dir_frame.pack(fill=tk.X, pady=2)
+
+        tk.Label(
+            auto_output_dir_frame,
+            text="📤 Auto Output Dir:",
+            font=("Arial", 9),
+            bg="#f0f0f0",
+            fg="#2c3e50",
+        ).pack(side=tk.LEFT)
+
+        self.auto_output_dir_var = tk.StringVar(value=self.auto_output_dir)
+        self.auto_output_dir_entry = tk.Entry(
+            auto_output_dir_frame,
+            textvariable=self.auto_output_dir_var,
+            font=("Arial", 9),
+            width=50,
+            state="readonly",
+        )
+        self.auto_output_dir_entry.pack(
+            side=tk.LEFT, padx=(10, 5), fill=tk.X, expand=True
+        )
+
+        tk.Button(
+            auto_output_dir_frame,
+            text="📁 Choose",
+            font=("Arial", 8),
+            bg="#9b59b6",
+            fg="white",
+            padx=10,
+            pady=2,
+            command=self.choose_auto_output_dir,
             cursor="hand2",
         ).pack(side=tk.RIGHT)
 
@@ -349,11 +447,52 @@ class SimplifiedKrathongScannerUI:
 
         threading.Thread(target=init_in_background, daemon=True).start()
 
+    def check_directory_conflicts(self):
+        """Check for directory conflicts between different modes."""
+        conflicts = []
+
+        # Check if web and auto output directories are the same
+        if os.path.normpath(self.web_output_dir) == os.path.normpath(
+            self.auto_output_dir
+        ):
+            conflicts.append(
+                "Web Server and Auto Directory have the same output directory"
+            )
+
+        # Check if auto input and output directories are the same
+        if os.path.normpath(self.auto_input_dir) == os.path.normpath(
+            self.auto_output_dir
+        ):
+            conflicts.append("Auto Directory input and output directories are the same")
+
+        return conflicts
+
+    def get_active_modes_status(self):
+        """Get status of all active modes."""
+        active_modes = []
+        if self.web_server_running:
+            active_modes.append("🌐 Web Server")
+        if self.auto_directory_running:
+            active_modes.append("📁 Auto Directory")
+
+        if not active_modes:
+            return "Ready"
+        elif len(active_modes) == 1:
+            return f"{active_modes[0]} running"
+        else:
+            return f"Multiple modes: {', '.join(active_modes)}"
+
     def update_status(self, message: str, show_progress: bool = False):
         """Update status message and progress bar."""
 
         def update():
-            self.status_label.config(text=message)
+            # Add multi-mode information if applicable
+            full_message = message
+            active_modes = self.get_active_modes_status()
+            if active_modes != "Ready" and not show_progress:
+                full_message = f"{message} | {active_modes}"
+
+            self.status_label.config(text=full_message)
             if show_progress:
                 self.progress.start(10)
             else:
@@ -600,6 +739,30 @@ class SimplifiedKrathongScannerUI:
             self.logger.info(f"Webcam output directory set to: {directory}")
             self.update_status(f"Webcam output directory: {directory}", False)
 
+    def choose_auto_input_dir(self):
+        """Choose auto directory input directory."""
+        directory = filedialog.askdirectory(
+            title="Choose Auto Directory Input Directory",
+            initialdir=self.auto_input_dir,
+        )
+        if directory:
+            self.auto_input_dir = directory
+            self.auto_input_dir_var.set(directory)
+            self.logger.info(f"Auto input directory set to: {directory}")
+            self.update_status(f"Auto input directory: {directory}", False)
+
+    def choose_auto_output_dir(self):
+        """Choose auto directory output directory."""
+        directory = filedialog.askdirectory(
+            title="Choose Auto Directory Output Directory",
+            initialdir=self.auto_output_dir,
+        )
+        if directory:
+            self.auto_output_dir = directory
+            self.auto_output_dir_var.set(directory)
+            self.logger.info(f"Auto output directory set to: {directory}")
+            self.update_status(f"Auto output directory: {directory}", False)
+
     def start_webcam(self):
         """Start webcam detection."""
         try:
@@ -626,79 +789,216 @@ class SimplifiedKrathongScannerUI:
             messagebox.showerror("Error", f"Failed to start webcam: {str(e)}")
 
     def start_web_server(self):
-        """Start the web server."""
-        try:
-            self.update_status("Starting web server...", True)
-
-            def run_server():
-                try:
-                    # Import and run web server
-                    import subprocess
-
-                    # Run the web server script with custom results folder
-                    server_path = Path(__file__).parent / "web" / "server.py"
-                    subprocess.Popen(
-                        [
-                            sys.executable,
-                            str(server_path),
-                            "--port",
-                            "5000",
-                            "--results-folder",
-                            self.web_output_dir,
-                        ]
+        """Start or stop the web server."""
+        if not self.web_server_running:
+            # Start web server
+            try:
+                # Check for directory conflicts
+                conflicts = self.check_directory_conflicts()
+                if conflicts:
+                    conflict_message = "Directory conflicts detected:\n\n" + "\n".join(
+                        f"• {c}" for c in conflicts
                     )
+                    conflict_message += (
+                        "\n\nPlease choose different directories to avoid issues."
+                    )
+                    result = messagebox.askyesno(
+                        "Directory Conflicts",
+                        f"{conflict_message}\n\nDo you want to continue anyway?",
+                    )
+                    if not result:
+                        return
 
-                except Exception as e:
-                    self.logger.error(f"Web server error: {e}")
+                self.update_status("Starting web server...", True)
 
-            threading.Thread(target=run_server, daemon=True).start()
-            self.update_status("Web server starting - Check console for URL", False)
+                def run_server():
+                    try:
+                        # Import and run web server
+                        import subprocess
 
-            # Wait a moment then open QR code
-            def open_qr_code():
-                import time
+                        # Run the web server script with custom results folder
+                        server_path = Path(__file__).parent / "web" / "server.py"
+                        self.web_server_process = subprocess.Popen(
+                            [
+                                sys.executable,
+                                str(server_path),
+                                "--port",
+                                "5000",
+                                "--results-folder",
+                                self.web_output_dir,
+                            ]
+                        )
 
-                time.sleep(5)  # Wait for web server to start and generate QR codes
+                    except Exception as e:
+                        self.logger.error(f"Web server error: {e}")
+                        self.root.after(
+                            0,
+                            lambda: self.update_status(
+                                f"Web server error: {str(e)}", False
+                            ),
+                        )
 
-                # Look for the public QR code image
-                qr_files = [
-                    Path(__file__).parent / "mall_public_qr.png",
-                    Path(__file__).parent / "web" / "static" / "qr_public.png",
-                    Path(__file__).parent / "web" / "static" / "qr_local.png",
-                ]
+                threading.Thread(target=run_server, daemon=True).start()
 
-                for qr_file in qr_files:
-                    if qr_file.exists():
-                        try:
-                            # Open QR code in default image viewer
-                            import subprocess
+                self.web_server_running = True
+                self.server_btn.config(text="⏹️ Stop Web Server", bg="#95a5a6")
 
-                            subprocess.run(
-                                ["start", str(qr_file)], shell=True, check=False
-                            )
-                            self.logger.info(f"Opened QR code: {qr_file}")
-                            break
-                        except Exception as e:
-                            self.logger.error(f"Failed to open QR code {qr_file}: {e}")
+                self.update_status("Web server starting - Check console for URL", False)
 
-            # Start QR opening in background
-            threading.Thread(target=open_qr_code, daemon=True).start()
+                # Wait a moment then open QR code
+                def open_qr_code():
+                    import time
 
-            # Show info dialog
+                    time.sleep(5)  # Wait for web server to start and generate QR codes
+
+                    # Look for the public QR code image
+                    qr_files = [
+                        Path(__file__).parent / "mall_public_qr.png",
+                        Path(__file__).parent / "web" / "static" / "qr_public.png",
+                        Path(__file__).parent / "web" / "static" / "qr_local.png",
+                    ]
+
+                    for qr_file in qr_files:
+                        if qr_file.exists():
+                            try:
+                                # Open QR code in default image viewer
+                                import subprocess
+
+                                subprocess.run(
+                                    ["start", str(qr_file)], shell=True, check=False
+                                )
+                                self.logger.info(f"Opened QR code: {qr_file}")
+                                break
+                            except Exception as e:
+                                self.logger.error(
+                                    f"Failed to open QR code {qr_file}: {e}"
+                                )
+
+                # Start QR opening in background
+                threading.Thread(target=open_qr_code, daemon=True).start()
+
+                # Show info dialog
+                messagebox.showinfo(
+                    "Web Server",
+                    f"Web server is starting!\n\n"
+                    f"Output Directory: {self.web_output_dir}\n\n"
+                    "• QR code will open automatically in ~5 seconds\n"
+                    "• Check the console window for URLs\n"
+                    "• Local URL (usually http://localhost:5000)\n"
+                    "• Public URL for mobile access\n\n"
+                    "You can upload photos from your phone!",
+                )
+
+            except Exception as e:
+                self.update_status(f"Error starting web server: {str(e)}", False)
+                messagebox.showerror("Error", f"Failed to start web server: {str(e)}")
+        else:
+            # Stop web server
+            try:
+                if self.web_server_process:
+                    self.web_server_process.terminate()
+                    self.web_server_process = None
+
+                self.web_server_running = False
+                self.server_btn.config(text="🌐 Start Web Server", bg="#e74c3c")
+                self.update_status("Web server stopped", False)
+                messagebox.showinfo(
+                    "Web Server Stopped", "Web server has been stopped."
+                )
+
+            except Exception as e:
+                self.logger.error(f"Error stopping web server: {e}")
+                self.update_status(f"Error stopping web server: {str(e)}", False)
+
+    def start_auto_directory(self):
+        """Start or stop auto directory monitoring."""
+        if not self.auto_directory_running:
+            # Start auto directory
+            try:
+                # Check for directory conflicts
+                conflicts = self.check_directory_conflicts()
+                if conflicts:
+                    conflict_message = "Directory conflicts detected:\n\n" + "\n".join(
+                        f"• {c}" for c in conflicts
+                    )
+                    conflict_message += (
+                        "\n\nPlease choose different directories to avoid issues."
+                    )
+                    result = messagebox.askyesno(
+                        "Directory Conflicts",
+                        f"{conflict_message}\n\nDo you want to continue anyway?",
+                    )
+                    if not result:
+                        return
+
+                # Ensure directories exist
+                Path(self.auto_input_dir).mkdir(parents=True, exist_ok=True)
+                Path(self.auto_output_dir).mkdir(parents=True, exist_ok=True)
+
+                self.update_status("Starting auto directory monitoring...", True)
+
+                def run_auto_directory():
+                    try:
+                        from src.auto_directory_detector import (
+                            run_auto_directory_detection,
+                        )
+
+                        self.logger.info(
+                            f"Auto directory monitoring: {self.auto_input_dir} -> {self.auto_output_dir}"
+                        )
+                        run_auto_directory_detection(
+                            input_dir=self.auto_input_dir,
+                            output_dir=self.auto_output_dir,
+                            check_interval=2.0,
+                            use_homography=True,
+                            use_rectangle_detection=False,
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Auto directory error: {e}")
+                        self.root.after(
+                            0,
+                            lambda: self.update_status(
+                                f"Auto directory error: {str(e)}", False
+                            ),
+                        )
+
+                self.auto_directory_thread = threading.Thread(
+                    target=run_auto_directory, daemon=True
+                )
+                self.auto_directory_thread.start()
+
+                self.auto_directory_running = True
+                self.auto_dir_btn.config(text="⏹️ Stop Auto Directory", bg="#e74c3c")
+
+                self.update_status(
+                    f"Auto directory monitoring started - Watching: {self.auto_input_dir}",
+                    False,
+                )
+
+                # Show info dialog
+                messagebox.showinfo(
+                    "Auto Directory Started",
+                    f"Auto Directory is now monitoring:\n\n"
+                    f"Input Directory: {self.auto_input_dir}\n"
+                    f"Output Directory: {self.auto_output_dir}\n\n"
+                    "Place new images in the input directory and they will be automatically processed!\n\n"
+                    "Supported formats: JPG, PNG, BMP, TIFF\n"
+                    "Processing happens every 2 seconds.",
+                )
+
+            except Exception as e:
+                self.update_status(f"Error starting auto directory: {str(e)}", False)
+                messagebox.showerror(
+                    "Error", f"Failed to start auto directory: {str(e)}"
+                )
+        else:
+            # Stop auto directory
+            self.auto_directory_running = False
+            self.auto_dir_btn.config(text="📁 Auto Directory", bg="#9b59b6")
+            self.update_status("Auto directory monitoring stopped", False)
             messagebox.showinfo(
-                "Web Server",
-                f"Web server is starting!\n\n"
-                f"Output Directory: {self.web_output_dir}\n\n"
-                "• QR code will open automatically in ~5 seconds\n"
-                "• Check the console window for URLs\n"
-                "• Local URL (usually http://localhost:5000)\n"
-                "• Public URL for mobile access\n\n"
-                "You can upload photos from your phone!",
+                "Auto Directory Stopped", "Auto directory monitoring has been stopped."
             )
-
-        except Exception as e:
-            self.update_status(f"Error starting web server: {str(e)}", False)
-            messagebox.showerror("Error", f"Failed to start web server: {str(e)}")
 
     def run(self):
         """Run the application."""
