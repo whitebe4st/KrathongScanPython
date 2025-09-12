@@ -620,15 +620,45 @@ class SimplifiedKrathongScannerUI:
             threading.Thread(target=run_server, daemon=True).start()
             self.update_status("Web server starting - Check console for URL", False)
 
+            # Wait a moment then open QR code
+            def open_qr_code():
+                import time
+
+                time.sleep(5)  # Wait for web server to start and generate QR codes
+
+                # Look for the public QR code image
+                qr_files = [
+                    Path(__file__).parent / "mall_public_qr.png",
+                    Path(__file__).parent / "web" / "static" / "qr_public.png",
+                    Path(__file__).parent / "web" / "static" / "qr_local.png",
+                ]
+
+                for qr_file in qr_files:
+                    if qr_file.exists():
+                        try:
+                            # Open QR code in default image viewer
+                            import subprocess
+
+                            subprocess.run(
+                                ["start", str(qr_file)], shell=True, check=False
+                            )
+                            self.logger.info(f"Opened QR code: {qr_file}")
+                            break
+                        except Exception as e:
+                            self.logger.error(f"Failed to open QR code {qr_file}: {e}")
+
+            # Start QR opening in background
+            threading.Thread(target=open_qr_code, daemon=True).start()
+
             # Show info dialog
             messagebox.showinfo(
                 "Web Server",
                 f"Web server is starting!\n\n"
                 f"Output Directory: {self.web_output_dir}\n\n"
-                "Check the console window for:\n"
+                "• QR code will open automatically in ~5 seconds\n"
+                "• Check the console window for URLs\n"
                 "• Local URL (usually http://localhost:5000)\n"
-                "• Public URL for mobile access\n"
-                "• QR code for easy mobile scanning\n\n"
+                "• Public URL for mobile access\n\n"
                 "You can upload photos from your phone!",
             )
 
