@@ -403,43 +403,77 @@ class SimplifiedKrathongScannerUI:
 
             self.update_status("Processing with ArUco detector...", True)
 
-            # Create temporary output file
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-                temp_output_path = temp_file.name
-
+            # Process similar to web server approach for proper masking
             try:
-                # Process with detector using the correct API
-                success = self.detector.process_frame(
-                    image, temp_output_path, use_homography=True
-                )
-
-                if success and os.path.exists(temp_output_path):
-                    # Load the processed result
-                    self.processed_image = cv2.imread(temp_output_path)
-                    if self.processed_image is not None:
-                        # Create result dict for compatibility
-                        result = {
-                            "processed_image": self.processed_image,
-                            "success": True,
-                        }
-                        self.root.after(0, self._display_result, result)
-                        self.update_status(
-                            "Processing complete - Image ready for review", False
-                        )
-                    else:
-                        self.update_status("Failed to load processed image", False)
-                        self.root.after(0, self._display_original)
-                else:
+                # Step 1: Detect markers
+                markers = self.detector.detect_markers(image)
+                if not markers:
                     self.update_status("No ArUco markers found in image", False)
                     self.root.after(0, self._display_original)
+                    return
 
-            finally:
-                # Clean up temporary file
-                try:
-                    if os.path.exists(temp_output_path):
-                        os.unlink(temp_output_path)
-                except:
-                    pass
+                # Step 2: Detect template
+                marker_ids = [marker.id for marker in markers]
+                template_id = self.detector.detect_template(marker_ids)
+                if not template_id:
+                    self.update_status("No template detected", False)
+                    self.root.after(0, self._display_original)
+                    return
+
+                # Step 3: Get corner markers
+                corner_markers = self.detector.get_corner_markers(markers)
+                if corner_markers is None:
+                    self.update_status("Could not find all corner markers", False)
+                    self.root.after(0, self._display_original)
+                    return
+
+                # Step 4: Apply homography correction
+                homography = self.detector.create_perspective_transform(corner_markers)
+                if homography is None:
+                    self.update_status("Failed to create perspective transform", False)
+                    self.root.after(0, self._display_original)
+                    return
+
+                corrected = self.detector.apply_perspective_correction(
+                    image, homography
+                )
+
+                # Step 5: Crop the corrected image
+                cropped = self.detector._crop_perspective_corrected_area(
+                    corrected, corner_markers
+                )
+
+                # Step 6: Apply template mask
+                template_config = self.detector.template_configs.get(template_id)
+                if template_config and template_config.get("mask_path"):
+                    mask_path = template_config["mask_path"]
+                    masked = self.detector.apply_template_mask(cropped, mask_path)
+
+                    # Step 7: Crop to content area (this removes black background and adds transparency)
+                    final_masked = self.detector._crop_masked_area(masked)
+
+                    self.processed_image = final_masked
+
+                    # Create result dict for compatibility
+                    result = {
+                        "processed_image": final_masked,
+                        "success": True,
+                        "template_name": template_id,
+                    }
+                    self.root.after(0, self._display_result, result)
+                    self.update_status(
+                        "Processing complete - Transparent masked image ready", False
+                    )
+                else:
+                    self.update_status("No template mask found", False)
+                    self.root.after(0, self._display_original)
+
+            except Exception as processing_error:
+                self.logger.error(f"Processing error: {processing_error}")
+                self.update_status(
+                    "Processing failed - No markers or template found", False
+                )
+                self.root.after(0, self._display_original)
 
         except Exception as e:
             self.update_status(f"Error processing image: {str(e)}", False)
