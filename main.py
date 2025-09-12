@@ -138,21 +138,21 @@ class SimplifiedKrathongScannerUI:
         )
         self.process_btn.grid(row=0, column=0, padx=(0, 15))
 
-        # Start Webcam button
-        self.webcam_btn = tk.Button(
-            button_frame,
-            text="📹 Start Webcam",
-            font=("Arial", 14, "bold"),
-            bg="#2ecc71",
-            fg="white",
-            relief=tk.RAISED,
-            borderwidth=2,
-            padx=30,
-            pady=15,
-            command=self.start_webcam,
-            cursor="hand2",
-        )
-        self.webcam_btn.grid(row=0, column=1, padx=15)
+        # Start Webcam button - COMMENTED OUT
+        # self.webcam_btn = tk.Button(
+        #     button_frame,
+        #     text="📹 Start Webcam",
+        #     font=("Arial", 14, "bold"),
+        #     bg="#2ecc71",
+        #     fg="white",
+        #     relief=tk.RAISED,
+        #     borderwidth=2,
+        #     padx=30,
+        #     pady=15,
+        #     command=self.start_webcam,
+        #     cursor="hand2",
+        # )
+        # self.webcam_btn.grid(row=0, column=1, padx=15)
 
         # Web Server button
         self.server_btn = tk.Button(
@@ -168,7 +168,7 @@ class SimplifiedKrathongScannerUI:
             command=self.start_web_server,
             cursor="hand2",
         )
-        self.server_btn.grid(row=0, column=2, padx=(15, 0))
+        self.server_btn.grid(row=0, column=1, padx=(15, 0))
 
     def create_config_section(self, parent):
         """Create the configuration section."""
@@ -217,39 +217,39 @@ class SimplifiedKrathongScannerUI:
             cursor="hand2",
         ).pack(side=tk.RIGHT)
 
-        # Webcam output directory setting
-        webcam_dir_frame = tk.Frame(config_frame, bg="#f0f0f0")
-        webcam_dir_frame.pack(fill=tk.X, pady=2)
+        # Webcam output directory setting - COMMENTED OUT
+        # webcam_dir_frame = tk.Frame(config_frame, bg="#f0f0f0")
+        # webcam_dir_frame.pack(fill=tk.X, pady=2)
 
-        tk.Label(
-            webcam_dir_frame,
-            text="📹 Webcam Output:",
-            font=("Arial", 9),
-            bg="#f0f0f0",
-            fg="#2c3e50",
-        ).pack(side=tk.LEFT)
+        # tk.Label(
+        #     webcam_dir_frame,
+        #     text="📹 Webcam Output:",
+        #     font=("Arial", 9),
+        #     bg="#f0f0f0",
+        #     fg="#2c3e50",
+        # ).pack(side=tk.LEFT)
 
-        self.webcam_dir_var = tk.StringVar(value=self.webcam_output_dir)
-        self.webcam_dir_entry = tk.Entry(
-            webcam_dir_frame,
-            textvariable=self.webcam_dir_var,
-            font=("Arial", 9),
-            width=50,
-            state="readonly",
-        )
-        self.webcam_dir_entry.pack(side=tk.LEFT, padx=(10, 5), fill=tk.X, expand=True)
+        # self.webcam_dir_var = tk.StringVar(value=self.webcam_output_dir)
+        # self.webcam_dir_entry = tk.Entry(
+        #     webcam_dir_frame,
+        #     textvariable=self.webcam_dir_var,
+        #     font=("Arial", 9),
+        #     width=50,
+        #     state="readonly",
+        # )
+        # self.webcam_dir_entry.pack(side=tk.LEFT, padx=(10, 5), fill=tk.X, expand=True)
 
-        tk.Button(
-            webcam_dir_frame,
-            text="📁 Choose",
-            font=("Arial", 8),
-            bg="#2ecc71",
-            fg="white",
-            padx=10,
-            pady=2,
-            command=self.choose_webcam_output_dir,
-            cursor="hand2",
-        ).pack(side=tk.RIGHT)
+        # tk.Button(
+        #     webcam_dir_frame,
+        #     text="📁 Choose",
+        #     font=("Arial", 8),
+        #     bg="#2ecc71",
+        #     fg="white",
+        #     padx=10,
+        #     pady=2,
+        #     command=self.choose_webcam_output_dir,
+        #     cursor="hand2",
+        # ).pack(side=tk.RIGHT)
 
     def create_preview_section(self, parent):
         """Create the image preview section."""
