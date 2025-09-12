@@ -1,9 +1,9 @@
 {
   "registry_info": {
     "created": "2025-09-09T17:07:12.230933",
-    "last_updated": "2025-09-10T11:02:37.965470",
+    "last_updated": "2025-09-12T18:29:09.778212",
     "total_templates": 5,
-    "next_available_id_set": [50, 51, 52, 53]
+    "next_available_id_set": [4, 5, 6, 7]
   },
   "templates": {
     "test_template_registry": {
@@ -85,6 +85,6 @@
       [30, 31, 32, 33],
       [40, 41, 42, 43]
     ],
-    "next_id_sequence": 50
+    "next_id_sequence": 4
   }
 }

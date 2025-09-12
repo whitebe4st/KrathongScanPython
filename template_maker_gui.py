@@ -21,6 +21,15 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+# Import template registry for database functionality
+try:
+    from database.registry import LocalTemplateRegistry
+except ImportError:
+    print(
+        "Warning: SQLite template registry not available. Database features will be disabled."
+    )
+    LocalTemplateRegistry = None
+
 
 class ImageCropper:
     """Interactive image cropping interface."""
@@ -2096,6 +2105,25 @@ class TemplatePreviewWindow:
             print(f"✅ Template metadata saved: {metadata_file}")
             print(f"🎯 ArUco IDs: {self.marker_ids}")
 
+            # Register template with database if registry is available
+            if hasattr(self, "registry") and self.registry:
+                try:
+                    self.registry.register_template(
+                        template_name=template_name,
+                        marker_ids=self.marker_ids,
+                        template_file=str(template_path),
+                        metadata_file=str(metadata_file),
+                    )
+                    print(f"✅ Template registered in database: {template_name}")
+
+                    # Update registry status in main GUI if available
+                    if hasattr(self.parent, "update_registry_status"):
+                        self.parent.update_registry_status()
+
+                except Exception as reg_error:
+                    print(f"⚠️ Failed to register template in database: {reg_error}")
+                    # Don't fail the template creation, just warn
+
             # Show success message
             success_message = f"Template created successfully!\n\nFiles saved:\n- Template: {template_filename}"
             if mask_path and mask_path.exists():
@@ -2136,7 +2164,7 @@ class TemplateMarkerGUI:
         """Initialize the GUI application."""
         self.root = tk.Tk()
         self.root.title("Krathong Template Maker")
-        self.root.geometry("800x600")
+        self.root.geometry("1200x1000")
         self.root.resizable(True, True)
 
         # Initialize template maker
@@ -2145,6 +2173,18 @@ class TemplateMarkerGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize template maker: {e}")
             sys.exit(1)
+
+        # Database status variables (initialize before loading registry)
+        self.db_status_var = tk.StringVar(value="Database not loaded")
+        self.available_markers_var = tk.StringVar(
+            value="Unknown marker combinations available"
+        )
+        self.auto_assign_var = tk.BooleanVar(value=False)
+
+        # Initialize template registry for database functionality
+        self.registry = None
+        self.db_path_var = tk.StringVar(value="data/db/scanner.db")
+        self.load_registry()
 
         # Variables
         self.template_name_var = tk.StringVar(value="my_template")
@@ -2170,6 +2210,9 @@ class TemplateMarkerGUI:
         self.create_widgets()
         self.center_window()
 
+        # Load registry on startup
+        self.load_registry()
+
     def setup_styles(self):
         """Setup modern styles for the GUI."""
         style = ttk.Style()
@@ -2187,6 +2230,169 @@ class TemplateMarkerGUI:
         x = (self.root.winfo_screenwidth() // 2) - (width // 2)
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
+
+    def load_registry(self):
+        """Load the template registry for database functionality."""
+        try:
+            if LocalTemplateRegistry:
+                self.registry = LocalTemplateRegistry(self.db_path_var.get())
+                self.update_registry_status()
+                print(f"✅ SQLite registry loaded: {self.db_path_var.get()}")
+            else:
+                self.db_status_var.set("Registry module not available")
+        except Exception as e:
+            self.db_status_var.set(f"Error loading registry: {str(e)}")
+            print(f"❌ Failed to load registry: {e}")
+
+    def update_registry_status(self):
+        """Update the registry status and available marker information."""
+        if not self.registry:
+            self.db_status_var.set("No registry loaded")
+            self.available_markers_var.set("Unknown marker combinations available")
+            return
+
+        try:
+            stats = self.registry.get_registry_stats()
+            total_templates = stats["total_templates"]
+            active_templates = stats["active_templates"]
+            next_ids = stats["next_available_ids"]
+
+            self.db_status_var.set(
+                f"Registry: {total_templates} templates ({active_templates} active)"
+            )
+
+            # Get available marker IDs from SQLite database
+            used_combinations = stats["total_id_combinations_used"]
+            available_ids = self.registry.get_available_marker_ids(
+                50
+            )  # Get all available IDs
+
+            # Check if we have enough available marker IDs
+            if len(available_ids) < 4:
+                # Very low marker availability
+                self.available_markers_var.set(
+                    f"⚠️ CRITICAL: Only {len(available_ids)} markers available! Next IDs: {next_ids}"
+                )
+                remaining = 0
+            elif len(next_ids) == 0:
+                # No valid next IDs
+                self.available_markers_var.set(
+                    f"⚠️ NO MORE COMBINATIONS: {len(available_ids)} individual markers available"
+                )
+                remaining = 0
+            else:
+                # Calculate remaining template combinations (each template needs 4 markers)
+                remaining = len(available_ids) // 4
+
+                if remaining <= 1:
+                    self.available_markers_var.set(
+                        f"⚠️ LOW: ~{remaining} combinations left | Next IDs: {next_ids}"
+                    )
+                else:
+                    self.available_markers_var.set(
+                        f"~{remaining} combinations remaining ({len(available_ids)} markers) | Next IDs: {next_ids}"
+                    )
+
+            # Auto-update marker fields if auto-assign is enabled and IDs are valid
+            if self.auto_assign_var.get() and remaining > 0 and len(next_ids) >= 4:
+                self.auto_assign_markers()
+
+        except Exception as e:
+            self.db_status_var.set(f"Registry error: {str(e)}")
+            print(f"❌ Registry status error: {e}")
+
+    def auto_assign_markers(self):
+        """Automatically assign unique marker IDs from the registry."""
+        if not self.registry:
+            messagebox.showwarning(
+                "No Registry", "Please load a template registry first."
+            )
+            return
+
+        try:
+            next_ids = self.registry.get_next_unique_ids()
+            for i, marker_id in enumerate(next_ids):
+                if i < len(self.marker_vars):
+                    self.marker_vars[i].set(str(marker_id))
+
+            print(f"✅ Auto-assigned marker IDs: {next_ids}")
+            self.status_var.set(f"Auto-assigned unique marker IDs: {next_ids}")
+
+        except ValueError as e:
+            # Handle marker limit exceeded
+            error_msg = str(e)
+            messagebox.showerror("Marker Limit Exceeded", error_msg)
+            print(f"❌ Auto-assign error: {e}")
+            self.status_var.set("⚠️ No more marker combinations available")
+
+        except Exception as e:
+            messagebox.showerror(
+                "Auto-Assign Error", f"Failed to auto-assign markers: {str(e)}"
+            )
+            print(f"❌ Auto-assign error: {e}")
+            self.status_var.set(f"Error: {str(e)}")
+
+    def choose_database_file(self):
+        """Let user choose a different database/registry file."""
+        file_path = filedialog.askopenfilename(
+            title="Choose Template Database File",
+            filetypes=[
+                ("Database files", "*.db"),
+                ("SQLite files", "*.sqlite"),
+                ("All files", "*.*"),
+            ],
+            initialdir="data/db",
+        )
+
+        if file_path:
+            self.db_path_var.set(file_path)
+            self.load_registry()
+
+    def check_marker_availability(self):
+        """Check if current marker combination is available."""
+        if not self.registry:
+            return True  # Allow if no registry
+
+        try:
+            current_ids = [
+                int(var.get()) for var in self.marker_vars if var.get().isdigit()
+            ]
+            if len(current_ids) != 4:
+                self.status_var.set("⚠️ Please enter all 4 marker IDs")
+                return True  # Let validation handle incomplete IDs
+
+            # Check if any ID is in the reserved range (0-19)
+            reserved_ids = [id for id in current_ids if 0 <= id <= 19]
+            if reserved_ids:
+                self.status_var.set(
+                    f"⚠️ Marker IDs {reserved_ids} are reserved (0-19) for hardcoded templates"
+                )
+                return False
+
+            # Check if any ID is outside the valid range (20-49 for ArUco 4x4_50)
+            invalid_ids = [id for id in current_ids if id < 20 or id > 49]
+            if invalid_ids:
+                self.status_var.set(
+                    f"⚠️ Invalid marker IDs {invalid_ids}: must be 20-49 for user templates"
+                )
+                return False
+
+            is_available = self.registry.is_id_combination_available(current_ids)
+            if not is_available:
+                self.status_var.set(
+                    f"⚠️ Marker combination {current_ids} is already in use!"
+                )
+                return False
+            else:
+                self.status_var.set(f"✅ Marker combination {current_ids} is available")
+                return True
+
+        except ValueError:
+            self.status_var.set("⚠️ Invalid marker IDs: please enter numbers only")
+            return True  # Allow if invalid input
+        except Exception as e:
+            print(f"❌ Marker availability check error: {e}")
+            return True
 
     def create_widgets(self):
         """Create all GUI widgets."""
@@ -2208,17 +2414,20 @@ class TemplateMarkerGUI:
         # Template specifications info
         self.create_info_section(main_frame, 1)
 
+        # Database section
+        self.create_database_section(main_frame, 2)
+
         # Template creation section
-        self.create_template_section(main_frame, 2)
+        self.create_template_section(main_frame, 3)
 
         # Batch creation section
-        self.create_batch_section(main_frame, 3)
+        self.create_batch_section(main_frame, 4)
 
         # Output section
-        self.create_output_section(main_frame, 4)
+        self.create_output_section(main_frame, 5)
 
         # Status bar
-        self.create_status_bar(main_frame, 5)
+        self.create_status_bar(main_frame, 6)
 
     def create_info_section(self, parent, row):
         """Create the information section."""
@@ -2234,12 +2443,70 @@ class TemplateMarkerGUI:
             "Drawing Area: 779×457 pixels (centered) | "
             "Marker Size: 100×100 pixels\n"
             "ArUco Dictionary: 4X4_50 | "
-            "Supported Formats: PNG, JPG | "
-            "Max Image Scale: 150%"
+            "User Templates: IDs 20-49 (0-19 reserved for hardcoded) | "
+            "Supported Formats: PNG, JPG"
         )
 
         info_label = ttk.Label(info_frame, text=info_text, style="Info.TLabel")
         info_label.grid(row=0, column=0, sticky=(tk.W, tk.E))
+
+    def create_database_section(self, parent, row):
+        """Create the database/registry section."""
+        db_frame = ttk.LabelFrame(parent, text="🗄️ ArUco Marker Database", padding="10")
+        db_frame.grid(
+            row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10)
+        )
+        db_frame.columnconfigure(1, weight=1)
+
+        # Database file path
+        ttk.Label(db_frame, text="Database File:", style="Heading.TLabel").grid(
+            row=0, column=0, sticky=tk.W, padx=(0, 10), pady=(0, 5)
+        )
+        db_path_frame = ttk.Frame(db_frame)
+        db_path_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=(0, 5))
+        db_path_frame.columnconfigure(0, weight=1)
+
+        db_path_entry = ttk.Entry(
+            db_path_frame, textvariable=self.db_path_var, state="readonly"
+        )
+        db_path_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
+
+        choose_db_btn = ttk.Button(
+            db_path_frame, text="Choose DB", command=self.choose_database_file
+        )
+        choose_db_btn.grid(row=0, column=1, padx=(0, 8))
+
+        reload_btn = ttk.Button(
+            db_path_frame, text="Reload", command=self.load_registry
+        )
+        reload_btn.grid(row=0, column=2)
+
+        # Database status
+        ttk.Label(db_frame, text="Status:", style="Heading.TLabel").grid(
+            row=1, column=0, sticky=tk.W, padx=(0, 10), pady=(5, 0)
+        )
+        status_label = ttk.Label(
+            db_frame, textvariable=self.db_status_var, style="Info.TLabel"
+        )
+        status_label.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=(5, 0))
+
+        # Available markers info
+        ttk.Label(db_frame, text="Available:", style="Heading.TLabel").grid(
+            row=2, column=0, sticky=tk.W, padx=(0, 10), pady=(5, 0)
+        )
+        markers_label = ttk.Label(
+            db_frame, textvariable=self.available_markers_var, style="Info.TLabel"
+        )
+        markers_label.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=(5, 0))
+
+        # Auto-assign option
+        auto_assign_check = ttk.Checkbutton(
+            db_frame,
+            text="Auto-assign unique marker IDs",
+            variable=self.auto_assign_var,
+            command=self.update_registry_status,
+        )
+        auto_assign_check.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(10, 0))
 
     def create_template_section(self, parent, row):
         """Create the single template creation section."""
@@ -2278,7 +2545,7 @@ class TemplateMarkerGUI:
 
         # Marker IDs
         markers_frame = ttk.LabelFrame(
-            template_frame, text="ArUco Marker IDs (0-49)", padding="5"
+            template_frame, text="ArUco Marker IDs (20-49, 0-19 reserved)", padding="5"
         )
         markers_frame.grid(
             row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0)
@@ -2296,16 +2563,16 @@ class TemplateMarkerGUI:
 
         # Quick preset buttons
         preset_frame = ttk.Frame(template_frame)
-        preset_frame.grid(row=3, column=0, columnspan=2, pady=(10, 0))
+        preset_frame.grid(row=3, column=0, columnspan=2, pady=(10, 5))
 
         ttk.Label(preset_frame, text="Quick Presets:").grid(
-            row=0, column=0, padx=(0, 10)
+            row=0, column=0, padx=(0, 15)
         )
 
         preset_configs = [
-            ("0,1,2,3", [0, 1, 2, 3]),
-            ("4,5,6,7", [4, 5, 6, 7]),
-            ("8,9,10,11", [8, 9, 10, 11]),
+            ("20,21,22,23", [20, 21, 22, 23]),
+            ("24,25,26,27", [24, 25, 26, 27]),
+            ("28,29,30,31", [28, 29, 30, 31]),
             ("Random", None),
         ]
 
@@ -2315,14 +2582,38 @@ class TemplateMarkerGUI:
                 text=label,
                 command=lambda m=markers: self.set_marker_preset(m),
             )
-            btn.grid(row=0, column=i + 1, padx=5)
+            btn.grid(row=0, column=i + 1, padx=8, pady=3)
+
+        # Marker validation and auto-assign buttons
+        validation_frame = ttk.Frame(template_frame)
+        validation_frame.grid(row=4, column=0, columnspan=2, pady=(10, 5))
+
+        auto_assign_btn = ttk.Button(
+            validation_frame,
+            text="🔄 Auto-Assign Unique IDs",
+            command=self.auto_assign_markers,
+            style="Accent.TButton",
+        )
+        auto_assign_btn.grid(row=0, column=0, padx=(0, 15), pady=5)
+
+        validate_btn = ttk.Button(
+            validation_frame,
+            text="✅ Check Availability",
+            command=self.check_marker_availability,
+        )
+        validate_btn.grid(row=0, column=1, padx=(0, 15), pady=5)
+
+        clear_btn = ttk.Button(
+            validation_frame, text="🗑️ Clear IDs", command=self.clear_marker_ids
+        )
+        clear_btn.grid(row=0, column=2, pady=5)
 
         # Image file selection
         image_frame = ttk.LabelFrame(
             template_frame, text="🖼️ Optional Image", padding="5"
         )
         image_frame.grid(
-            row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0)
+            row=5, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0)
         )
         image_frame.columnconfigure(0, weight=1)
 
@@ -2331,22 +2622,22 @@ class TemplateMarkerGUI:
         image_file_frame.columnconfigure(0, weight=1)
 
         image_entry = ttk.Entry(image_file_frame, textvariable=self.image_path_var)
-        image_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
+        image_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 8))
 
         browse_image_btn = ttk.Button(
             image_file_frame, text="Browse & Crop Image", command=self.browse_image_file
         )
-        browse_image_btn.grid(row=0, column=1)
+        browse_image_btn.grid(row=0, column=1, padx=(0, 5))
 
         crop_image_btn = ttk.Button(
             image_file_frame, text="Remove White BG", command=self.crop_current_image
         )
-        crop_image_btn.grid(row=0, column=2, padx=(5, 0))
+        crop_image_btn.grid(row=0, column=2, padx=(0, 5))
 
         clear_image_btn = ttk.Button(
             image_file_frame, text="Clear", command=lambda: self.image_path_var.set("")
         )
-        clear_image_btn.grid(row=0, column=3, padx=(5, 0))
+        clear_image_btn.grid(row=0, column=3)
 
         # Image controls
         controls_frame = ttk.Frame(image_frame)
@@ -2356,22 +2647,22 @@ class TemplateMarkerGUI:
 
         # Buttons frame
         buttons_frame = ttk.Frame(template_frame)
-        buttons_frame.grid(row=5, column=0, columnspan=2, pady=(15, 0))
+        buttons_frame.grid(row=6, column=0, columnspan=2, pady=(15, 0))
 
         # Main action buttons
         ttk.Button(
             buttons_frame, text="🎯 Create Template", command=self.create_single_template
-        ).grid(row=0, column=0, padx=(0, 10))
+        ).grid(row=0, column=0, padx=(0, 15), pady=5)
 
         ttk.Button(
             buttons_frame, text="👁️ Preview Template", command=self.preview_template
-        ).grid(row=0, column=1, padx=(0, 10))
+        ).grid(row=0, column=1, padx=(0, 15), pady=5)
 
         ttk.Button(
             buttons_frame,
             text="🔄 Update Live Preview",
             command=self.update_live_preview,
-        ).grid(row=0, column=2)
+        ).grid(row=0, column=2, pady=5)
 
     def create_batch_section(self, parent, row):
         """Create the batch creation section."""
@@ -2383,7 +2674,7 @@ class TemplateMarkerGUI:
 
         # Buttons frame
         buttons_frame = ttk.Frame(batch_frame)
-        buttons_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        buttons_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=5)
 
         # Sequential templates
         sequential_btn = ttk.Button(
@@ -2391,7 +2682,7 @@ class TemplateMarkerGUI:
             text="📊 Create Sequential Templates",
             command=self.create_sequential_templates,
         )
-        sequential_btn.grid(row=0, column=0, padx=(0, 10), pady=5)
+        sequential_btn.grid(row=0, column=0, padx=(0, 15), pady=8)
 
         # From config file
         config_btn = ttk.Button(
@@ -2399,7 +2690,7 @@ class TemplateMarkerGUI:
             text="📄 Create from Config File",
             command=self.create_from_config,
         )
-        config_btn.grid(row=0, column=1, padx=(0, 10), pady=5)
+        config_btn.grid(row=0, column=1, padx=(0, 15), pady=8)
 
         # Create sample config
         sample_btn = ttk.Button(
@@ -2407,7 +2698,7 @@ class TemplateMarkerGUI:
             text="📝 Create Sample Config",
             command=self.create_sample_config,
         )
-        sample_btn.grid(row=0, column=2, pady=5)
+        sample_btn.grid(row=0, column=2, pady=8)
 
     def create_output_section(self, parent, row):
         """Create the output and management section."""
@@ -2420,25 +2711,25 @@ class TemplateMarkerGUI:
 
         # Buttons frame
         mgmt_frame = ttk.Frame(output_frame)
-        mgmt_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        mgmt_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=5)
 
         # List templates
         list_btn = ttk.Button(
             mgmt_frame, text="📋 List Templates", command=self.list_templates
         )
-        list_btn.grid(row=0, column=0, padx=(0, 10), pady=5)
+        list_btn.grid(row=0, column=0, padx=(0, 15), pady=8)
 
         # Open output folder
         folder_btn = ttk.Button(
             mgmt_frame, text="📂 Open Output Folder", command=self.open_output_folder
         )
-        folder_btn.grid(row=0, column=1, padx=(0, 10), pady=5)
+        folder_btn.grid(row=0, column=1, padx=(0, 15), pady=8)
 
         # View specifications
         specs_btn = ttk.Button(
             mgmt_frame, text="📐 View Specifications", command=self.show_specifications
         )
-        specs_btn.grid(row=0, column=2, pady=5)
+        specs_btn.grid(row=0, column=2, pady=8)
 
     def create_status_bar(self, parent, row):
         """Create the status bar."""
@@ -2461,13 +2752,19 @@ class TemplateMarkerGUI:
     def set_marker_preset(self, markers):
         """Set marker IDs from preset."""
         if markers is None:
-            # Generate random markers
+            # Generate random markers from valid range (20-49, excluding 0-19 reserved)
             import random
 
-            markers = random.sample(range(50), 4)
+            markers = random.sample(range(20, 50), 4)
 
         for i, marker_id in enumerate(markers):
             self.marker_vars[i].set(str(marker_id))
+
+    def clear_marker_ids(self):
+        """Clear all marker ID fields."""
+        for var in self.marker_vars:
+            var.set("")
+        self.status_var.set("Marker IDs cleared")
 
     def browse_output_directory(self):
         """Browse for output directory."""
@@ -2755,6 +3052,26 @@ class TemplateMarkerGUI:
 
                 print(f"✅ Template metadata saved: {metadata_file}")
                 print(f"🎯 ArUco IDs: {markers}")
+
+                # Register template with database if registry is available
+                if hasattr(self, "registry") and self.registry:
+                    try:
+                        self.registry.register_template(
+                            template_name=template_name,
+                            marker_ids=markers,
+                            template_file=str(template_file),
+                            metadata_file=str(metadata_file),
+                        )
+                        print(f"✅ Template registered in database: {template_name}")
+
+                        # Update registry status on main thread
+                        self.root.after(0, self.update_registry_status)
+
+                    except Exception as reg_error:
+                        print(
+                            f"⚠️ Failed to register template in database: {reg_error}"
+                        )
+                        # Don't fail the template creation, just warn
 
                 self.update_status("Template created successfully!", False)
                 messagebox.showinfo(

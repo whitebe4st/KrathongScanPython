@@ -101,26 +101,86 @@ class TemplateRegistry:
 
         Returns:
             List of 4 unique marker IDs
+
+        Raises:
+            ValueError: If no more valid combinations are available
         """
+        # ArUco 4x4_50 dictionary supports markers 0-49
+        MAX_MARKER_ID = 49
+
         # Get next sequence number
         next_seq = self.registry_data["id_allocation"]["next_id_sequence"]
+
+        # Check if we can fit 4 consecutive IDs within the limit
+        if next_seq + 3 > MAX_MARKER_ID:
+            # Try to find gaps in used combinations or reset to a lower sequence
+            available_start = self._find_available_sequence_start()
+            if available_start is None:
+                raise ValueError(
+                    f"No more unique 4-marker combinations available within ArUco 4x4_50 range (0-{MAX_MARKER_ID}). "
+                    f"Consider using overlapping combinations or a larger ArUco dictionary."
+                )
+            next_seq = available_start
 
         # Generate 4 consecutive IDs starting from next_seq
         marker_ids = [next_seq, next_seq + 1, next_seq + 2, next_seq + 3]
 
+        # Ensure all IDs are within valid range
+        if max(marker_ids) > MAX_MARKER_ID:
+            raise ValueError(
+                f"Cannot assign marker IDs {marker_ids}: exceeds ArUco 4x4_50 limit (0-{MAX_MARKER_ID})"
+            )
+
         # Update sequence for next allocation (reserve some gaps for safety)
-        self.registry_data["id_allocation"]["next_id_sequence"] = next_seq + 10
+        # But don't go beyond the limit
+        next_increment = min(next_seq + 10, MAX_MARKER_ID - 3)
+        self.registry_data["id_allocation"]["next_id_sequence"] = next_increment
 
         # Update next available info
-        self.registry_data["registry_info"]["next_available_id_set"] = [
-            next_seq + 10,
-            next_seq + 11,
-            next_seq + 12,
-            next_seq + 13,
-        ]
+        if next_increment + 3 <= MAX_MARKER_ID:
+            self.registry_data["registry_info"]["next_available_id_set"] = [
+                next_increment,
+                next_increment + 1,
+                next_increment + 2,
+                next_increment + 3,
+            ]
+        else:
+            # No more sequences available
+            self.registry_data["registry_info"]["next_available_id_set"] = [
+                -1,
+                -1,
+                -1,
+                -1,
+            ]
 
         logger.info(f"Allocated unique marker IDs: {marker_ids}")
         return marker_ids
+
+    def _find_available_sequence_start(self) -> Optional[int]:
+        """
+        Find the next available starting position for a 4-marker sequence.
+
+        Returns:
+            Starting position or None if no sequence available
+        """
+        MAX_MARKER_ID = 49
+        used_combinations = self.registry_data["id_allocation"]["used_combinations"]
+
+        # Convert used combinations to a set of individual used IDs
+        used_ids = set()
+        for combo in used_combinations:
+            used_ids.update(combo)
+
+        # Look for 4 consecutive available IDs
+        for start in range(0, MAX_MARKER_ID - 2, 10):  # Check every 10 positions
+            sequence = [start, start + 1, start + 2, start + 3]
+            if (
+                all(id not in used_ids for id in sequence)
+                and max(sequence) <= MAX_MARKER_ID
+            ):
+                return start
+
+        return None
 
     def is_id_combination_available(self, marker_ids: List[int]) -> bool:
         """
