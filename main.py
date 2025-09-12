@@ -35,7 +35,7 @@ class SimplifiedKrathongScannerUI:
         """Initialize the simplified UI."""
         self.root = tk.Tk()
         self.root.title("🌸 KrathongScanner - Easy Photo Processing")
-        self.root.geometry("900x700")
+        self.root.geometry("1100x900")
         self.root.configure(bg="#f0f0f0")
 
         # Initialize detector
@@ -73,14 +73,14 @@ class SimplifiedKrathongScannerUI:
         self.root.update_idletasks()
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        x = (screen_width - 900) // 2
-        y = (screen_height - 700) // 2
-        self.root.geometry(f"900x700+{x}+{y}")
+        x = (screen_width - 1100) // 2
+        y = (screen_height - 900) // 2
+        self.root.geometry(f"1100x900+{x}+{y}")
 
     def create_interface(self):
         """Create the main interface."""
         # Main container with padding
-        main_frame = tk.Frame(self.root, bg="#f0f0f0", padx=20, pady=20)
+        main_frame = tk.Frame(self.root, bg="#f0f0f0", padx=15, pady=15)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Title section
@@ -126,7 +126,7 @@ class SimplifiedKrathongScannerUI:
     def create_action_section(self, parent):
         """Create the action buttons section."""
         action_frame = tk.Frame(parent, bg="#f0f0f0")
-        action_frame.pack(fill=tk.X, pady=(0, 20))
+        action_frame.pack(fill=tk.X, pady=(0, 15))
 
         # Action buttons in a clean grid
         button_frame = tk.Frame(action_frame, bg="#f0f0f0")
@@ -204,10 +204,10 @@ class SimplifiedKrathongScannerUI:
             font=("Arial", 10, "bold"),
             bg="#f0f0f0",
             fg="#2c3e50",
-            padx=10,
-            pady=5,
+            padx=8,
+            pady=3,
         )
-        config_frame.pack(fill=tk.X, pady=(0, 15))
+        config_frame.pack(fill=tk.X, pady=(0, 10))
 
         # Web output directory setting
         web_dir_frame = tk.Frame(config_frame, bg="#f0f0f0")
@@ -357,21 +357,21 @@ class SimplifiedKrathongScannerUI:
             font=("Arial", 12, "bold"),
             bg="#f0f0f0",
             fg="#2c3e50",
-            padx=10,
-            pady=10,
+            padx=8,
+            pady=5,
         )
-        preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
+        preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
 
         # Create canvas for image display
         self.canvas = tk.Canvas(
-            preview_frame, bg="white", relief=tk.SUNKEN, borderwidth=2, height=350
+            preview_frame, bg="white", relief=tk.SUNKEN, borderwidth=2, height=280
         )
         self.canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Initial message
         self.canvas.create_text(
-            450,
-            175,
+            550,
+            140,
             text="Select 'Process Photo' to load and process an image\nor use 'Start Webcam' for real-time processing",
             font=("Arial", 12),
             fill="#7f8c8d",
