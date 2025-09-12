@@ -6,7 +6,6 @@ A clean, simple interface for KrathongScanner without complex modals.
 Everything is accessible from one main window.
 """
 
-import argparse
 import os
 import sys
 import threading
@@ -42,10 +41,6 @@ class SimplifiedKrathongScannerUI:
         self.current_image = None
         self.processed_image = None
 
-        # Configuration settings
-        self.web_output_dir = str(Path(__file__).parent / "web" / "results")
-        self.webcam_output_dir = str(Path(__file__).parent / "data" / "webcam_captures")
-
         # Setup logger
         self.logger = setup_logger()
 
@@ -78,9 +73,6 @@ class SimplifiedKrathongScannerUI:
 
         # Action buttons section
         self.create_action_section(main_frame)
-
-        # Configuration section
-        self.create_config_section(main_frame)
 
         # Image preview section
         self.create_preview_section(main_frame)
@@ -169,87 +161,6 @@ class SimplifiedKrathongScannerUI:
             cursor="hand2",
         )
         self.server_btn.grid(row=0, column=2, padx=(15, 0))
-
-    def create_config_section(self, parent):
-        """Create the configuration section."""
-        config_frame = tk.LabelFrame(
-            parent,
-            text="⚙️ Configuration",
-            font=("Arial", 10, "bold"),
-            bg="#f0f0f0",
-            fg="#2c3e50",
-            padx=10,
-            pady=5,
-        )
-        config_frame.pack(fill=tk.X, pady=(0, 15))
-
-        # Web output directory setting
-        web_dir_frame = tk.Frame(config_frame, bg="#f0f0f0")
-        web_dir_frame.pack(fill=tk.X, pady=2)
-
-        tk.Label(
-            web_dir_frame,
-            text="🌐 Web Server Output:",
-            font=("Arial", 9),
-            bg="#f0f0f0",
-            fg="#2c3e50",
-        ).pack(side=tk.LEFT)
-
-        self.web_dir_var = tk.StringVar(value=self.web_output_dir)
-        self.web_dir_entry = tk.Entry(
-            web_dir_frame,
-            textvariable=self.web_dir_var,
-            font=("Arial", 9),
-            width=50,
-            state="readonly",
-        )
-        self.web_dir_entry.pack(side=tk.LEFT, padx=(10, 5), fill=tk.X, expand=True)
-
-        tk.Button(
-            web_dir_frame,
-            text="📁 Choose",
-            font=("Arial", 8),
-            bg="#3498db",
-            fg="white",
-            padx=10,
-            pady=2,
-            command=self.choose_web_output_dir,
-            cursor="hand2",
-        ).pack(side=tk.RIGHT)
-
-        # Webcam output directory setting
-        webcam_dir_frame = tk.Frame(config_frame, bg="#f0f0f0")
-        webcam_dir_frame.pack(fill=tk.X, pady=2)
-
-        tk.Label(
-            webcam_dir_frame,
-            text="📹 Webcam Output:",
-            font=("Arial", 9),
-            bg="#f0f0f0",
-            fg="#2c3e50",
-        ).pack(side=tk.LEFT)
-
-        self.webcam_dir_var = tk.StringVar(value=self.webcam_output_dir)
-        self.webcam_dir_entry = tk.Entry(
-            webcam_dir_frame,
-            textvariable=self.webcam_dir_var,
-            font=("Arial", 9),
-            width=50,
-            state="readonly",
-        )
-        self.webcam_dir_entry.pack(side=tk.LEFT, padx=(10, 5), fill=tk.X, expand=True)
-
-        tk.Button(
-            webcam_dir_frame,
-            text="📁 Choose",
-            font=("Arial", 8),
-            bg="#2ecc71",
-            fg="white",
-            padx=10,
-            pady=2,
-            command=self.choose_webcam_output_dir,
-            cursor="hand2",
-        ).pack(side=tk.RIGHT)
 
     def create_preview_section(self, parent):
         """Create the image preview section."""
@@ -388,9 +299,6 @@ class SimplifiedKrathongScannerUI:
 
     def _process_photo_background(self, file_path: str):
         """Process photo in background thread."""
-        import os
-        import tempfile
-
         try:
             self.update_status("Loading image...", True)
 
@@ -403,43 +311,18 @@ class SimplifiedKrathongScannerUI:
 
             self.update_status("Processing with ArUco detector...", True)
 
-            # Create temporary output file
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as temp_file:
-                temp_output_path = temp_file.name
+            # Process with detector
+            result = self.detector.process_image(image)
 
-            try:
-                # Process with detector using the correct API
-                success = self.detector.process_frame(
-                    image, temp_output_path, use_homography=True
+            if result and "processed_image" in result:
+                self.processed_image = result["processed_image"]
+                self.root.after(0, self._display_result, result)
+                self.update_status(
+                    "Processing complete - Image ready for review", False
                 )
-
-                if success and os.path.exists(temp_output_path):
-                    # Load the processed result
-                    self.processed_image = cv2.imread(temp_output_path)
-                    if self.processed_image is not None:
-                        # Create result dict for compatibility
-                        result = {
-                            "processed_image": self.processed_image,
-                            "success": True,
-                        }
-                        self.root.after(0, self._display_result, result)
-                        self.update_status(
-                            "Processing complete - Image ready for review", False
-                        )
-                    else:
-                        self.update_status("Failed to load processed image", False)
-                        self.root.after(0, self._display_original)
-                else:
-                    self.update_status("No ArUco markers found in image", False)
-                    self.root.after(0, self._display_original)
-
-            finally:
-                # Clean up temporary file
-                try:
-                    if os.path.exists(temp_output_path):
-                        os.unlink(temp_output_path)
-                except:
-                    pass
+            else:
+                self.update_status("No ArUco markers found in image", False)
+                self.root.after(0, self._display_original)
 
         except Exception as e:
             self.update_status(f"Error processing image: {str(e)}", False)
@@ -544,42 +427,18 @@ class SimplifiedKrathongScannerUI:
         self.processed_image = None
         self.update_status("Ready - Select an action to begin", False)
 
-    def choose_web_output_dir(self):
-        """Choose web server output directory."""
-        directory = filedialog.askdirectory(
-            title="Choose Web Server Output Directory", initialdir=self.web_output_dir
-        )
-        if directory:
-            self.web_output_dir = directory
-            self.web_dir_var.set(directory)
-            self.logger.info(f"Web output directory set to: {directory}")
-            self.update_status(f"Web output directory: {directory}", False)
-
-    def choose_webcam_output_dir(self):
-        """Choose webcam output directory."""
-        directory = filedialog.askdirectory(
-            title="Choose Webcam Output Directory", initialdir=self.webcam_output_dir
-        )
-        if directory:
-            self.webcam_output_dir = directory
-            self.webcam_dir_var.set(directory)
-            self.logger.info(f"Webcam output directory set to: {directory}")
-            self.update_status(f"Webcam output directory: {directory}", False)
-
     def start_webcam(self):
         """Start webcam detection."""
         try:
             self.update_status("Starting webcam...", True)
 
             # Import webcam detector
-            from src.webcam_detector_with_paper import WebcamDetectorWithPaper
+            from webcam_detector_with_paper import WebcamDetectorWithPaper
 
             # Start webcam in separate process to avoid blocking
             def run_webcam():
                 try:
-                    detector = WebcamDetectorWithPaper(
-                        camera_id=0, capture_dir=self.webcam_output_dir
-                    )
+                    detector = WebcamDetectorWithPaper(camera_id=0)
                     detector.run()
                 except Exception as e:
                     self.logger.error(f"Webcam error: {e}")
@@ -601,17 +460,10 @@ class SimplifiedKrathongScannerUI:
                     # Import and run web server
                     import subprocess
 
-                    # Run the web server script with custom results folder
+                    # Run the web server script
                     server_path = Path(__file__).parent / "web" / "server.py"
                     subprocess.Popen(
-                        [
-                            sys.executable,
-                            str(server_path),
-                            "--port",
-                            "5000",
-                            "--results-folder",
-                            self.web_output_dir,
-                        ]
+                        [sys.executable, str(server_path), "--port", "5000"]
                     )
 
                 except Exception as e:
@@ -623,8 +475,7 @@ class SimplifiedKrathongScannerUI:
             # Show info dialog
             messagebox.showinfo(
                 "Web Server",
-                f"Web server is starting!\n\n"
-                f"Output Directory: {self.web_output_dir}\n\n"
+                "Web server is starting!\n\n"
                 "Check the console window for:\n"
                 "• Local URL (usually http://localhost:5000)\n"
                 "• Public URL for mobile access\n"
@@ -647,258 +498,14 @@ class SimplifiedKrathongScannerUI:
             messagebox.showerror("Error", f"Unexpected error: {str(e)}")
 
 
-# Keep the original command-line functionality for backward compatibility
-def run_webcam_detection(mode="basic"):
-    """Run webcam detection in specified mode."""
-    logger = setup_logger()
-
-    if mode == "basic":
-        logger.info("Starting basic webcam detection...")
-        from src.webcam_detector import WebcamDetector
-
-        detector = WebcamDetector(
-            camera_index=0, frame_width=1280, frame_height=720, fps=30
-        )
-    elif mode == "advanced":
-        logger.info("Starting advanced webcam detection...")
-        from src.webcam_detector_advanced import AdvancedWebcamDetector
-
-        detector = AdvancedWebcamDetector(
-            camera_index=0,
-            frame_width=1280,
-            frame_height=720,
-            fps=30,
-            auto_capture=True,
-            capture_delay=2.0,
-            min_markers=4,
-        )
-    elif mode == "enhanced":
-        logger.info("Starting enhanced webcam detection with paper detection...")
-        from src.webcam_detector_with_paper import WebcamDetectorWithPaper
-
-        detector = WebcamDetectorWithPaper(camera_id=0)
-    else:
-        logger.error(f"Unknown webcam mode: {mode}")
-        return
-
-    try:
-        detector.run()
-    except KeyboardInterrupt:
-        logger.info("Webcam detection stopped by user")
-    except Exception as e:
-        logger.error(f"Error in webcam detection: {e}")
-
-
-def run_web_server(host="0.0.0.0", port=5000):
-    """Run the KrathongScanner web server."""
-    logger = setup_logger()
-
-    try:
-        logger.info("Starting KrathongScanner Web Server...")
-        logger.info(f"Server will be available at http://localhost:{port}")
-
-        # Import Flask server components
-        sys.path.insert(0, str(Path(__file__).parent / "web"))
-
-        # Import and run the server
-        from web import server
-
-        # Set Flask configuration
-        server.app.config["HOST"] = host
-        server.app.config["PORT"] = port
-
-        # Initialize the auto detector (commented out to prevent duplicate files)
-        # server.setup_auto_detector()
-
-        logger.info(f"Upload folder: {server.UPLOAD_FOLDER}")
-        logger.info(f"Results folder: {server.RESULTS_FOLDER}")
-        logger.info("=" * 50)
-        logger.info("🎯 Web Server Ready! Upload images to process them automatically")
-        logger.info("=" * 50)
-
-        # Start Flask server in a separate thread
-        def start_flask_server():
-            server.app.run(host=host, port=port, debug=False, use_reloader=False)
-
-        flask_thread = threading.Thread(target=start_flask_server, daemon=True)
-        flask_thread.start()
-
-        # Wait a moment for Flask server to start
-        time.sleep(3)
-
-        # Now start InstaTunnel for public access
-        logger.info("Starting InstaTunnel for public access...")
-        public_url = server.start_instatunnel(port)
-
-        if public_url:
-            logger.info(f"Public URL: {public_url}")
-            qr_code = server.generate_qr_code(public_url)
-            if qr_code:
-                logger.info("QR code generated for mobile access")
-        else:
-            logger.warning("Server will only be available locally")
-
-        # Keep the main thread alive
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Shutting down...")
-
-    except ImportError as e:
-        logger.error(f"Failed to import web server components: {e}")
-        logger.error("Make sure Flask and other web dependencies are installed:")
-        logger.error("pip install flask werkzeug requests qrcode pillow")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Error starting web server: {e}")
-        sys.exit(1)
-    finally:
-        # Cleanup
-        try:
-            from web import server
-
-            server.cleanup_on_exit()
-        except:
-            pass
-
-
 def main():
-    """Main application function with both GUI and CLI support."""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description="KrathongScanner - ArUco Marker Detection System"
-    )
-    parser.add_argument(
-        "--mode",
-        choices=[
-            "ui",
-            "webcam",
-            "webcam-advanced",
-            "webcam-enhanced",
-            "server",
-            "auto-directory",
-            "web-server",
-        ],
-        default="ui",
-        help="Application mode: ui (simplified graphical interface), webcam (basic), webcam-advanced (auto-capture), webcam-enhanced (with paper detection), web-server (mobile upload interface), auto-directory (monitor folder for new images), or server (WebSocket API)",
-    )
-    parser.add_argument(
-        "--camera", type=int, default=0, help="Camera device index (default: 0)"
-    )
-    parser.add_argument(
-        "--input-dir",
-        type=str,
-        help="Input directory to monitor for new images (auto-directory mode)",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        help="Output directory for processed images (auto-directory mode)",
-    )
-    parser.add_argument(
-        "--check-interval",
-        type=float,
-        default=2.0,
-        help="Interval in seconds to check for new files (default: 2.0)",
-    )
-    parser.add_argument(
-        "--use-homography",
-        action="store_true",
-        default=True,
-        help="Use homography/perspective correction (default: True)",
-    )
-    parser.add_argument(
-        "--no-homography",
-        action="store_true",
-        help="Disable homography/perspective correction",
-    )
-    parser.add_argument(
-        "--use-rectangle-detection",
-        action="store_true",
-        help="Use rectangle detection instead of ArUco markers (auto-directory mode)",
-    )
-
-    args = parser.parse_args()
-
-    # Set up logging
-    logger = setup_logger()
-
+    """Main entry point for simplified UI."""
     try:
-        logger.info("Starting KrathongScanner...")
-
-        if args.mode == "ui":
-            logger.info("Running in simplified UI mode")
-            app = SimplifiedKrathongScannerUI()
-            app.run()
-        elif args.mode == "webcam":
-            logger.info("Running in webcam detection mode")
-            run_webcam_detection("basic")
-        elif args.mode == "webcam-advanced":
-            logger.info("Running in advanced webcam detection mode")
-            run_webcam_detection("advanced")
-        elif args.mode == "webcam-enhanced":
-            logger.info(
-                "Running in enhanced webcam detection mode with paper detection"
-            )
-            run_webcam_detection("enhanced")
-        elif args.mode == "auto-directory":
-            logger.info("Running in auto-directory mode")
-            from src.auto_directory_detector import run_auto_directory_detection
-
-            # Get directories from command line or prompt user
-            input_dir = args.input_dir
-            output_dir = args.output_dir
-
-            if not input_dir:
-                input_dir = input("Enter input directory to monitor: ").strip()
-                if not input_dir:
-                    logger.error("Input directory is required for auto-directory mode")
-                    return
-
-            if not output_dir:
-                output_dir = input(
-                    "Enter output directory for processed images: "
-                ).strip()
-                if not output_dir:
-                    output_dir = "data/processed_images"
-                    logger.info(f"Using default output directory: {output_dir}")
-
-            # Determine homography setting
-            use_homography = (
-                not args.no_homography if args.no_homography else args.use_homography
-            )
-
-            logger.info(f"Input directory: {input_dir}")
-            logger.info(f"Output directory: {output_dir}")
-            logger.info(f"Check interval: {args.check_interval} seconds")
-            logger.info(f"Use homography: {use_homography}")
-            logger.info(f"Use rectangle detection: {args.use_rectangle_detection}")
-
-            # Run auto-directory detection
-            run_auto_directory_detection(
-                input_dir,
-                output_dir,
-                args.check_interval,
-                use_homography,
-                args.use_rectangle_detection,
-            )
-        elif args.mode == "web-server":
-            logger.info("Running in web server mode")
-            # Run the web server (this will block)
-            run_web_server()
-        elif args.mode == "server":
-            logger.info("Running in server mode")
-            logger.info("Server mode not yet implemented")
-            # TODO: Implement WebSocket server mode
-
-    except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt, shutting down...")
+        app = SimplifiedKrathongScannerUI()
+        app.run()
     except Exception as e:
-        logger.error(f"Unexpected error: {e}", exc_info=True)
+        print(f"Failed to start application: {e}")
         sys.exit(1)
-    finally:
-        logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":

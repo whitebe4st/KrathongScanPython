@@ -1399,9 +1399,9 @@ if __name__ == "__main__":
 
     # Override directories if specified via command line
     if args.upload_folder:
-        UPLOAD_FOLDER = os.path.abspath(args.upload_folder)
+        globals()["UPLOAD_FOLDER"] = os.path.abspath(args.upload_folder)
     if args.results_folder:
-        RESULTS_FOLDER = os.path.abspath(args.results_folder)
+        globals()["RESULTS_FOLDER"] = os.path.abspath(args.results_folder)
 
     # Ensure directories exist with updated paths
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
