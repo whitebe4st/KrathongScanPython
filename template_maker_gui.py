@@ -1213,7 +1213,7 @@ class TemplatePreviewWindow:
         # Create preview window
         self.window = tk.Toplevel(parent)
         self.window.title("Template Preview")
-        self.window.geometry("1000x700")
+        self.window.geometry("1400x900")
         self.window.resizable(True, True)
 
         # Bind global arrow keys for mask offset adjustment

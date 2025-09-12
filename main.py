@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
-# Add src to Python path
+# add src to py path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from aruco_detector.detector import ArUcoDetector
@@ -34,11 +34,11 @@ class SimplifiedKrathongScannerUI:
     def __init__(self):
         """Initialize the simplified UI."""
         self.root = tk.Tk()
-        self.root.title("🌸 KrathongScanner - Easy Photo Processing")
+        self.root.title("KrathongScanner")
         self.root.geometry("1100x900")
         self.root.configure(bg="#f0f0f0")
 
-        # Initialize detector
+        # detector inti
         self.detector = None
         self.current_image = None
         self.processed_image = None
