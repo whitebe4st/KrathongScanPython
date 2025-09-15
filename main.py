@@ -538,6 +538,31 @@ class SimplifiedKrathongScannerUI:
             if image is None:
                 raise ValueError("Could not load image")
 
+            # Compress large images for better processing (like web server does)
+            original_shape = image.shape
+            self.logger.info(f"🖼️ GUI: Original image size: {original_shape[:2]}")
+
+            # Compress to reasonable size for processing (similar to mobile upload)
+            max_dimension = 1280  # Much smaller, like web processing
+            height, width = image.shape[:2]
+
+            if height > max_dimension or width > max_dimension:
+                # Calculate scale factor to maintain aspect ratio
+                scale_factor = max_dimension / max(height, width)
+                new_width = int(width * scale_factor)
+                new_height = int(height * scale_factor)
+
+                self.logger.info(
+                    f"📏 GUI: Compressing large image from {width}x{height} to {new_width}x{new_height}"
+                )
+                self.update_status(f"Compressing large image for processing...", True)
+
+                # Use INTER_AREA for better downscaling quality
+                image = cv2.resize(
+                    image, (new_width, new_height), interpolation=cv2.INTER_AREA
+                )
+                self.logger.info(f"✅ GUI: Image compressed successfully")
+
             self.current_image = image.copy()
 
             self.update_status("Processing with ArUco detector...", True)
