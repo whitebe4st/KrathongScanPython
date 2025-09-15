@@ -600,11 +600,11 @@ class SimplifiedKrathongScannerUI:
                     corrected, corner_markers
                 )
 
-                # Step 6: Apply template mask
-                template_config = detector.template_configs.get(template_id)
-                if template_config and template_config.get("mask_path"):
-                    mask_path = template_config["mask_path"]
-                    masked = detector.apply_template_mask(cropped, mask_path)
+                # Step 6: Apply template mask - use proper mask path resolution
+                template_mask_path = detector.get_template_mask_path()
+                self.logger.info(f"🔍 GUI: Template mask path: {template_mask_path}")
+                if template_mask_path:
+                    masked = detector.apply_template_mask(cropped, template_mask_path)
 
                     # Step 7: Crop to content area (this removes black background and adds transparency)
                     final_masked = detector._crop_masked_area(masked)
