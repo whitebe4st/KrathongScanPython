@@ -533,17 +533,18 @@ class SimplifiedKrathongScannerUI:
         try:
             self.update_status("Loading image...", True)
 
-            # Load image
+            # Load image - EXACTLY like web server (no preprocessing)
             image = cv2.imread(file_path)
             if image is None:
                 raise ValueError("Could not load image")
 
-            # Compress large images for better processing (like web server does)
+            # Apply smart compression to match web server behavior
+            # Web server gets ~1400x900 images that work perfectly
             original_shape = image.shape
             self.logger.info(f"🖼️ GUI: Original image size: {original_shape[:2]}")
 
-            # Compress to reasonable size for processing (similar to mobile upload)
-            max_dimension = 1280  # Much smaller, like web processing
+            # Compress to web-server-like dimensions for optimal processing
+            max_dimension = 1400  # Similar to what web server appears to get
             height, width = image.shape[:2]
 
             if height > max_dimension or width > max_dimension:
@@ -553,15 +554,15 @@ class SimplifiedKrathongScannerUI:
                 new_height = int(height * scale_factor)
 
                 self.logger.info(
-                    f"📏 GUI: Compressing large image from {width}x{height} to {new_width}x{new_height}"
+                    f"📏 GUI: Compressing to web-server-like size: {width}x{height} -> {new_width}x{new_height}"
                 )
-                self.update_status(f"Compressing large image for processing...", True)
+                self.update_status(f"Optimizing image size for processing...", True)
 
                 # Use INTER_AREA for better downscaling quality
                 image = cv2.resize(
                     image, (new_width, new_height), interpolation=cv2.INTER_AREA
                 )
-                self.logger.info(f"✅ GUI: Image compressed successfully")
+                self.logger.info(f"✅ GUI: Image optimized for processing")
 
             self.current_image = image.copy()
 
@@ -599,6 +600,11 @@ class SimplifiedKrathongScannerUI:
                         "Paper detection failed, using original image", True
                     )
                     processing_image = image
+
+                # DEBUG: Log processing image size before ArUco detection
+                self.logger.info(
+                    f"🔍 GUI: Processing image size before ArUco: {processing_image.shape}"
+                )
 
                 # Step 2: ArUco marker detection (most precise)
                 markers = detector.detect_markers(processing_image)
