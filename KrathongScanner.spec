@@ -8,6 +8,14 @@ a = Analysis(
     binaries=[],
     datas=[
         ('src', 'src'),
+        ('web', 'web'),
+        ('models', 'models'),
+        ('config', 'config'),
+        ('apps', 'apps'),
+        ('database', 'database'),
+        ('utils', 'utils'),
+        ('core', 'core'),
+        ('data/db', 'data/db'),
     ],
     hiddenimports=[
         'cv2',
@@ -46,14 +54,14 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='KrathongScanner_V2',
+    name='KrathongScanner_V3',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # Set to True if you want console output
+    console=True,  # Set to True if you want console output
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

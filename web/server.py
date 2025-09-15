@@ -1575,3 +1575,57 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Server error: {e}")
         signal_handler(None, None)
+
+
+def run_web_server(host="0.0.0.0", port=5000, results_folder=None):
+    """Run the KrathongScanner web server - function for GUI integration."""
+    import logging
+
+    logger = logging.getLogger("krathong_scanner")
+
+    try:
+        logger.info("Starting KrathongScanner Web Server...")
+        logger.info(f"Server will be available at http://localhost:{port}")
+        logger.info("🔥 Running in frozen mode, starting web server in-process")
+
+        # Set Flask configuration
+        app.config["HOST"] = host
+        app.config["PORT"] = port
+
+        logger.info(f"Upload folder: {UPLOAD_FOLDER}")
+        logger.info(f"Results folder: {RESULTS_FOLDER}")
+        logger.info("=" * 50)
+        logger.info("🎯 Web Server Ready! Upload images to process them automatically")
+        logger.info("=" * 50)
+
+        # Start Flask server in a separate thread
+        def start_flask_server():
+            app.run(host=host, port=port, debug=False, use_reloader=False)
+
+        flask_thread = threading.Thread(target=start_flask_server, daemon=True)
+        flask_thread.start()
+
+        # Wait a moment for Flask server to start
+        time.sleep(3)
+
+        # Now start InstaTunnel for public access
+        logger.info("Starting InstaTunnel for public access...")
+        public_url = start_instatunnel(port)
+
+        if public_url:
+            logger.info(f"Public URL: {public_url}")
+            qr_code = generate_qr_code(public_url)
+            if qr_code:
+                logger.info("QR code generated for mobile access")
+
+        # Keep the main thread alive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
+            logger.info("Shutdown complete")
+
+    except Exception as e:
+        logger.error(f"Failed to start web server: {e}")
+        raise

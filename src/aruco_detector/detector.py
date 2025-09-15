@@ -166,7 +166,28 @@ class ArUcoDetector:
             # For custom templates, try using the direct mask_path first
             if "mask_path" in self.current_template_config:
                 mask_path = Path(self.current_template_config["mask_path"])
-                if mask_path.exists():
+                # Convert absolute paths to relative for external data
+                if mask_path.is_absolute():
+                    # Try to make it relative to current working directory
+                    try:
+                        rel_path = mask_path.relative_to(Path.cwd())
+                        if rel_path.exists():
+                            self.logger.info(
+                                f"Using template mask (relative): {rel_path}"
+                            )
+                            return str(rel_path)
+                    except ValueError:
+                        pass
+                    # Try just the filename in data/markers/templates
+                    filename_only = mask_path.name
+                    rel_mask_path = Path("data/markers/templates") / filename_only
+                    if rel_mask_path.exists():
+                        self.logger.info(
+                            f"Using template mask (filename): {rel_mask_path}"
+                        )
+                        return str(rel_mask_path)
+                elif mask_path.exists():
+                    self.logger.info(f"Using template mask (direct): {mask_path}")
                     return str(mask_path)
 
             # Fallback to mask_file for hardcoded templates
@@ -175,54 +196,93 @@ class ArUcoDetector:
 
                 # Try multiple possible paths for both development and executable environments
                 possible_paths = [
-                    # Development environment paths
+                    # External data directory (preferred for frozen exe)
                     Path("data/markers/templates") / mask_filename,
+                    # Development environment paths
                     Path(__file__).parent.parent.parent
                     / "data/markers/templates"
                     / mask_filename,
-                    # Executable environment paths (PyInstaller)
-                    Path(sys.executable).parent
-                    / "data/markers/templates"
-                    / mask_filename,
-                    Path(sys.executable).parent
-                    / "src/data/markers/templates"
-                    / mask_filename,
                 ]
 
-            # Try different naming conventions for each path
-            for base_path in possible_paths:
-                # Try original filename
-                mask_path = base_path
-                if mask_path.exists():
-                    self.logger.info(f"Using template mask: {mask_path}")
-                    return str(mask_path)
+                # Add PyInstaller bundle locations if frozen
+                if getattr(sys, "frozen", False):
+                    if hasattr(sys, "_MEIPASS"):
+                        possible_paths.insert(
+                            1,
+                            Path(sys._MEIPASS)
+                            / "data/markers/templates"
+                            / mask_filename,
+                        )
+                    # Also try relative to executable
+                    exe_dir = Path(sys.executable).parent
+                    possible_paths.extend(
+                        [
+                            exe_dir / "data/markers/templates" / mask_filename,
+                            exe_dir / "src/data/markers/templates" / mask_filename,
+                        ]
+                    )
 
-                # Try with "mask" prefix and "final" suffix
-                alt_filename = f"mask{self.current_template[-1]}_final.png"
-                mask_path = base_path.parent / alt_filename
-                if mask_path.exists():
-                    self.logger.info(f"Using template mask: {mask_path}")
-                    return str(mask_path)
+                # Try different naming conventions for each path
+                for base_path in possible_paths:
+                    self.logger.info(f"🔍 Checking mask path: {base_path}")
+                    # Try original filename
+                    if base_path.exists():
+                        self.logger.info(f"✅ Using template mask: {base_path}")
+                        return str(base_path)
 
-            self.logger.warning(f"Template mask not found in any location")
+                    # Try with "mask" prefix and "final" suffix for hardcoded templates
+                    if self.current_template and self.current_template.startswith(
+                        "krathong"
+                    ):
+                        try:
+                            template_num = self.current_template[-1]
+                            alt_filename = f"mask{template_num}_final.png"
+                            alt_path = base_path.parent / alt_filename
+                            self.logger.info(
+                                f"🔍 Checking alternative mask path: {alt_path}"
+                            )
+                            if alt_path.exists():
+                                self.logger.info(
+                                    f"✅ Using template mask (alt): {alt_path}"
+                                )
+                                return str(alt_path)
+                        except (IndexError, ValueError):
+                            pass
+
+            self.logger.warning(f"⚠️ Template mask not found in any location")
             return None
         else:
             # Fallback to default mask - try multiple paths
             possible_paths = [
+                # External data directory (preferred for frozen exe)
                 Path("data/markers/templates/mask1_final.png"),
+                # Development environment paths
                 Path(__file__).parent.parent.parent
                 / "data/markers/templates/mask1_final.png",
-                Path(sys.executable).parent / "data/markers/templates/mask1_final.png",
-                Path(sys.executable).parent
-                / "src/data/markers/templates/mask1_final.png",
             ]
 
+            # Add PyInstaller bundle locations if frozen
+            if getattr(sys, "frozen", False):
+                if hasattr(sys, "_MEIPASS"):
+                    possible_paths.insert(
+                        1, Path(sys._MEIPASS) / "data/markers/templates/mask1_final.png"
+                    )
+                # Also try relative to executable
+                exe_dir = Path(sys.executable).parent
+                possible_paths.extend(
+                    [
+                        exe_dir / "data/markers/templates/mask1_final.png",
+                        exe_dir / "src/data/markers/templates/mask1_final.png",
+                    ]
+                )
+
             for mask_path in possible_paths:
+                self.logger.info(f"🔍 Checking default mask path: {mask_path}")
                 if mask_path.exists():
-                    self.logger.info(f"Using default mask: {mask_path}")
+                    self.logger.info(f"✅ Using default mask: {mask_path}")
                     return str(mask_path)
 
-            self.logger.error("No template mask found and no default mask available")
+            self.logger.error("❌ No template mask found and no default mask available")
             return None
 
     def _setup_logger(self):
@@ -1349,12 +1409,45 @@ class ArUcoDetector:
         """
         try:
             # Import database components directly
+            import sys
             from pathlib import Path
 
             from database.registry import LocalTemplateRegistry
 
-            # Use scanner.db from data/db/ directory
-            db_path = Path(__file__).parent.parent.parent / "data" / "db" / "scanner.db"
+            # Use scanner.db from data/db/ directory - check multiple locations
+            db_candidates = [
+                # External data directory (preferred for frozen exe)
+                Path.cwd() / "data" / "db" / "scanner.db",
+                # Project root data directory
+                Path(__file__).parent.parent.parent / "data" / "db" / "scanner.db",
+            ]
+
+            # Add PyInstaller bundle location if frozen
+            if getattr(sys, "frozen", False):
+                # Running in PyInstaller bundle
+                if hasattr(sys, "_MEIPASS"):
+                    db_candidates.insert(
+                        0, Path(sys._MEIPASS) / "data" / "db" / "scanner.db"
+                    )
+                # Also try relative to executable
+                exe_dir = Path(sys.executable).parent
+                db_candidates.insert(0, exe_dir / "data" / "db" / "scanner.db")
+
+            db_path = None
+            for candidate in db_candidates:
+                self.logger.info(f"🔍 Checking database at: {candidate}")
+                if candidate.exists():
+                    db_path = candidate
+                    self.logger.info(f"✅ Found database at: {db_path}")
+                    break
+
+            if not db_path:
+                self.logger.warning(
+                    f"⚠️ Database not found in any location: {[str(c) for c in db_candidates]}"
+                )
+                self.logger.info("📋 Using hardcoded templates only")
+                return
+
             registry = LocalTemplateRegistry(str(db_path))
 
             # Get templates from database

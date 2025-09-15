@@ -544,52 +544,70 @@ class SimplifiedKrathongScannerUI:
 
             # Process similar to web server approach for proper masking
             try:
+                # Debug logging
+                self.logger.info(
+                    f"🔍 GUI: Starting marker detection on image with shape: {image.shape}"
+                )
+
+                # Create fresh detector instance like web server does
+                from aruco_detector.detector import ArUcoDetector
+
+                detector = ArUcoDetector()
+                self.logger.info("🔍 GUI: Created fresh ArUcoDetector instance")
+
                 # Step 1: Detect markers
-                markers = self.detector.detect_markers(image)
+                markers = detector.detect_markers(image)
+                self.logger.info(
+                    f"🔍 GUI: Found {len(markers) if markers else 0} markers"
+                )
+                if markers:
+                    marker_ids = [marker.id for marker in markers]
+                    self.logger.info(f"🔍 GUI: Marker IDs: {marker_ids}")
+
                 if not markers:
+                    self.logger.warning("🔍 GUI: No ArUco markers found in image")
                     self.update_status("No ArUco markers found in image", False)
                     self.root.after(0, self._display_original)
                     return
 
                 # Step 2: Detect template
                 marker_ids = [marker.id for marker in markers]
-                template_id = self.detector.detect_template(marker_ids)
+                template_id = detector.detect_template(marker_ids)
+                self.logger.info(f"🔍 GUI: Template detected: {template_id}")
                 if not template_id:
                     self.update_status("No template detected", False)
                     self.root.after(0, self._display_original)
                     return
 
                 # Step 3: Get corner markers
-                corner_markers = self.detector.get_corner_markers(markers)
+                corner_markers = detector.get_corner_markers(markers)
                 if corner_markers is None:
                     self.update_status("Could not find all corner markers", False)
                     self.root.after(0, self._display_original)
                     return
 
                 # Step 4: Apply homography correction
-                homography = self.detector.create_perspective_transform(corner_markers)
+                homography = detector.create_perspective_transform(corner_markers)
                 if homography is None:
                     self.update_status("Failed to create perspective transform", False)
                     self.root.after(0, self._display_original)
                     return
 
-                corrected = self.detector.apply_perspective_correction(
-                    image, homography
-                )
+                corrected = detector.apply_perspective_correction(image, homography)
 
                 # Step 5: Crop the corrected image
-                cropped = self.detector._crop_perspective_corrected_area(
+                cropped = detector._crop_perspective_corrected_area(
                     corrected, corner_markers
                 )
 
                 # Step 6: Apply template mask
-                template_config = self.detector.template_configs.get(template_id)
+                template_config = detector.template_configs.get(template_id)
                 if template_config and template_config.get("mask_path"):
                     mask_path = template_config["mask_path"]
-                    masked = self.detector.apply_template_mask(cropped, mask_path)
+                    masked = detector.apply_template_mask(cropped, mask_path)
 
                     # Step 7: Crop to content area (this removes black background and adds transparency)
-                    final_masked = self.detector._crop_masked_area(masked)
+                    final_masked = detector._crop_masked_area(masked)
 
                     self.processed_image = final_masked
 
@@ -813,28 +831,44 @@ class SimplifiedKrathongScannerUI:
 
                 def run_server():
                     try:
-                        # Import and run web server
-                        import subprocess
+                        # Check if running in frozen mode (PyInstaller)
+                        if getattr(sys, "frozen", False):
+                            # Running in PyInstaller bundle - start server in-process
+                            self.logger.info(
+                                "🔥 Running in frozen mode, starting web server in-process"
+                            )
+                            from web.server import run_web_server
 
-                        # Run the web server script with custom results folder
-                        server_path = Path(__file__).parent / "web" / "server.py"
-                        self.web_server_process = subprocess.Popen(
-                            [
-                                sys.executable,
-                                str(server_path),
-                                "--port",
-                                "5000",
-                                "--results-folder",
-                                self.web_output_dir,
-                            ]
-                        )
+                            # Start server in background thread
+                            threading.Thread(
+                                target=lambda: run_web_server(
+                                    port=5000, results_folder=self.web_output_dir
+                                ),
+                                daemon=True,
+                            ).start()
+                        else:
+                            # Development mode - use subprocess
+                            import subprocess
+
+                            server_path = Path(__file__).parent / "web" / "server.py"
+                            self.web_server_process = subprocess.Popen(
+                                [
+                                    sys.executable,
+                                    str(server_path),
+                                    "--port",
+                                    "5000",
+                                    "--results-folder",
+                                    self.web_output_dir,
+                                ]
+                            )
 
                     except Exception as e:
                         self.logger.error(f"Web server error: {e}")
+                        error_msg = str(e)  # Capture the error message
                         self.root.after(
                             0,
-                            lambda: self.update_status(
-                                f"Web server error: {str(e)}", False
+                            lambda msg=error_msg: self.update_status(
+                                f"Web server error: {msg}", False
                             ),
                         )
 
@@ -1194,7 +1228,7 @@ def run_webcam_detection(mode="basic"):
         logger.error(f"Error in webcam detection: {e}")
 
 
-def run_web_server(host="0.0.0.0", port=5000):
+def run_web_server(host="0.0.0.0", port=5000, results_folder=None):
     """Run the KrathongScanner web server."""
     logger = setup_logger()
 
@@ -1202,53 +1236,120 @@ def run_web_server(host="0.0.0.0", port=5000):
         logger.info("Starting KrathongScanner Web Server...")
         logger.info(f"Server will be available at http://localhost:{port}")
 
-        # Import Flask server components
-        sys.path.insert(0, str(Path(__file__).parent / "web"))
+        # Check if running in frozen mode (PyInstaller)
+        if getattr(sys, "frozen", False):
+            # Running in PyInstaller bundle - import and run in-process
+            logger.info("🔥 Running in frozen mode, starting web server in-process")
+            try:
+                from web.server import (
+                    RESULTS_FOLDER,
+                    UPLOAD_FOLDER,
+                    app,
+                    generate_qr_code,
+                    start_instatunnel,
+                )
 
-        # Import and run the server
-        from web import server
+                # Set Flask configuration
+                app.config["HOST"] = host
+                app.config["PORT"] = port
 
-        # Set Flask configuration
-        server.app.config["HOST"] = host
-        server.app.config["PORT"] = port
+                logger.info(f"Upload folder: {UPLOAD_FOLDER}")
+                logger.info(f"Results folder: {RESULTS_FOLDER}")
+                logger.info("=" * 50)
+                logger.info(
+                    "🎯 Web Server Ready! Upload images to process them automatically"
+                )
+                logger.info("=" * 50)
 
-        # Initialize the auto detector (commented out to prevent duplicate files)
-        # server.setup_auto_detector()
+                # Start Flask server in a separate thread
+                def start_flask_server():
+                    app.run(host=host, port=port, debug=False, use_reloader=False)
 
-        logger.info(f"Upload folder: {server.UPLOAD_FOLDER}")
-        logger.info(f"Results folder: {server.RESULTS_FOLDER}")
-        logger.info("=" * 50)
-        logger.info("🎯 Web Server Ready! Upload images to process them automatically")
-        logger.info("=" * 50)
+                flask_thread = threading.Thread(target=start_flask_server, daemon=True)
+                flask_thread.start()
 
-        # Start Flask server in a separate thread
-        def start_flask_server():
-            server.app.run(host=host, port=port, debug=False, use_reloader=False)
+                # Wait a moment for Flask server to start
+                time.sleep(3)
 
-        flask_thread = threading.Thread(target=start_flask_server, daemon=True)
-        flask_thread.start()
+                # Now start InstaTunnel for public access
+                logger.info("Starting InstaTunnel for public access...")
+                public_url = start_instatunnel(port)
 
-        # Wait a moment for Flask server to start
-        time.sleep(3)
+                if public_url:
+                    logger.info(f"Public URL: {public_url}")
+                    qr_code = generate_qr_code(public_url)
+                    if qr_code:
+                        logger.info("QR code generated for mobile access")
 
-        # Now start InstaTunnel for public access
-        logger.info("Starting InstaTunnel for public access...")
-        public_url = server.start_instatunnel(port)
+                # Keep the main thread alive
+                try:
+                    while True:
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    logger.info("Shutting down...")
+                    # Cleanup if needed
+                    try:
+                        from web.server import cleanup_on_exit
 
-        if public_url:
-            logger.info(f"Public URL: {public_url}")
-            qr_code = server.generate_qr_code(public_url)
-            if qr_code:
-                logger.info("QR code generated for mobile access")
+                        cleanup_on_exit()
+                    except ImportError:
+                        pass
+                    logger.info("Shutdown complete")
+
+            except Exception as e:
+                logger.error(f"Failed to start web server in frozen mode: {e}")
+                raise
         else:
-            logger.warning("Server will only be available locally")
+            # Development mode - use subprocess approach
+            logger.info("🔧 Running in development mode, using subprocess")
+            import subprocess
 
-        # Keep the main thread alive
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Shutting down...")
+            # Import Flask server components
+            sys.path.insert(0, str(Path(__file__).parent / "web"))
+
+            # Import and run the server
+            from web import server
+
+            # Set Flask configuration
+            server.app.config["HOST"] = host
+            server.app.config["PORT"] = port
+
+            logger.info(f"Upload folder: {server.UPLOAD_FOLDER}")
+            logger.info(f"Results folder: {server.RESULTS_FOLDER}")
+            logger.info("=" * 50)
+            logger.info(
+                "🎯 Web Server Ready! Upload images to process them automatically"
+            )
+            logger.info("=" * 50)
+
+            # Start Flask server in a separate thread
+            def start_flask_server():
+                server.app.run(host=host, port=port, debug=False, use_reloader=False)
+
+            flask_thread = threading.Thread(target=start_flask_server, daemon=True)
+            flask_thread.start()
+
+            # Wait a moment for Flask server to start
+            time.sleep(3)
+
+            # Now start InstaTunnel for public access
+            logger.info("Starting InstaTunnel for public access...")
+            public_url = server.start_instatunnel(port)
+
+            if public_url:
+                logger.info(f"Public URL: {public_url}")
+                qr_code = server.generate_qr_code(public_url)
+                if qr_code:
+                    logger.info("QR code generated for mobile access")
+            else:
+                logger.warning("Server will only be available locally")
+
+            # Keep the main thread alive
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Shutting down...")
 
     except ImportError as e:
         logger.error(f"Failed to import web server components: {e}")
