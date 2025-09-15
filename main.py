@@ -542,72 +542,164 @@ class SimplifiedKrathongScannerUI:
 
             self.update_status("Processing with ArUco detector...", True)
 
-            # Process similar to web server approach for proper masking
+            # Use the same robust processing as web server
             try:
-                # Debug logging
                 self.logger.info(
-                    f"🔍 GUI: Starting marker detection on image with shape: {image.shape}"
+                    f"🔍 GUI: Starting processing on image with shape: {image.shape}"
                 )
 
-                # Create fresh detector instance like web server does
+                # Create fresh detector instances like web server does
                 from aruco_detector.detector import ArUcoDetector
+                from enhanced_rectangle_cropper import (
+                    detect_and_crop_rectangle_enhanced,
+                )
+                from paper_detector import PaperDetector
 
                 detector = ArUcoDetector()
-                self.logger.info("🔍 GUI: Created fresh ArUcoDetector instance")
+                paper_detector = PaperDetector(target_size=(1280, 720))
+                self.logger.info("🔍 GUI: Created fresh detector instances")
 
-                # Step 1: Detect markers
-                markers = detector.detect_markers(image)
-                self.logger.info(
-                    f"🔍 GUI: Found {len(markers) if markers else 0} markers"
+                # Step 1: Paper detection first (like web server)
+                processing_image, paper_ok = paper_detector.process_with_auto_zoom(
+                    image
                 )
-                if markers:
-                    marker_ids = [marker.id for marker in markers]
-                    self.logger.info(f"🔍 GUI: Marker IDs: {marker_ids}")
+                if paper_ok:
+                    self.logger.info("📄 GUI: Paper detector succeeded")
+                    self.update_status("Paper detection successful", True)
+                else:
+                    self.logger.warning(
+                        "� GUI: Paper detector failed; using original image"
+                    )
+                    self.update_status(
+                        "Paper detection failed, using original image", True
+                    )
+                    processing_image = image
 
-                if not markers:
-                    self.logger.warning("🔍 GUI: No ArUco markers found in image")
-                    self.update_status("No ArUco markers found in image", False)
-                    self.root.after(0, self._display_original)
-                    return
-
-                # Step 2: Detect template
-                marker_ids = [marker.id for marker in markers]
-                template_id = detector.detect_template(marker_ids)
-                self.logger.info(f"🔍 GUI: Template detected: {template_id}")
-                if not template_id:
-                    self.update_status("No template detected", False)
-                    self.root.after(0, self._display_original)
-                    return
-
-                # Step 3: Get corner markers
-                corner_markers = detector.get_corner_markers(markers)
-                if corner_markers is None:
-                    self.update_status("Could not find all corner markers", False)
-                    self.root.after(0, self._display_original)
-                    return
-
-                # Step 4: Apply homography correction
-                homography = detector.create_perspective_transform(corner_markers)
-                if homography is None:
-                    self.update_status("Failed to create perspective transform", False)
-                    self.root.after(0, self._display_original)
-                    return
-
-                corrected = detector.apply_perspective_correction(image, homography)
-
-                # Step 5: Crop the corrected image
-                cropped = detector._crop_perspective_corrected_area(
-                    corrected, corner_markers
+                # Step 2: ArUco marker detection (most precise)
+                markers = detector.detect_markers(processing_image)
+                marker_ids = [m.id for m in markers] if markers else []
+                template_id = (
+                    detector.detect_template(marker_ids) if marker_ids else None
                 )
 
-                # Step 6: Apply template mask - use proper mask path resolution
-                template_mask_path = detector.get_template_mask_path()
+                cropped = None
+
+                if markers and template_id:
+                    self.logger.info(f"🎯 GUI: Found ArUco template: {template_id}")
+                    self.update_status(f"Found ArUco template: {template_id}", True)
+                    corner_markers = detector.get_corner_markers(markers)
+                    if corner_markers is not None:
+                        self.logger.info("🎯 GUI: Using ArUco-based cropping")
+                        cropped = detector._apply_homography_and_crop(
+                            processing_image, corner_markers
+                        )
+                    else:
+                        self.logger.error("❌ GUI: Could not find all corner markers")
+                        self.update_status("Could not find all corner markers", False)
+                        self.root.after(0, self._display_original)
+                        return
+                else:
+                    self.logger.info(
+                        "🔍 GUI: No ArUco markers found, trying rectangle detection..."
+                    )
+                    self.update_status(
+                        "No ArUco markers found, trying rectangle detection...", True
+                    )
+
+                    # Step 3: Fallback to rectangle detection
+                    rect_cropped, rect_contour = detect_and_crop_rectangle_enhanced(
+                        processing_image
+                    )
+                    if rect_cropped is not None:
+                        self.logger.info(
+                            "� GUI: Rectangle area detected; using rectangle-cropped image"
+                        )
+                        self.update_status("Rectangle detection successful", True)
+                        cropped = rect_cropped
+
+                        # Normalize to target canvas to align with template masks
+                        try:
+                            TARGET_W, TARGET_H = 779, 457
+                            if (
+                                cropped.shape[1] != TARGET_W
+                                or cropped.shape[0] != TARGET_H
+                            ):
+                                cropped = cv2.resize(
+                                    cropped,
+                                    (TARGET_W, TARGET_H),
+                                    interpolation=cv2.INTER_LANCZOS4,
+                                )
+                                self.logger.info(
+                                    f"📏 GUI: Resized rectangle crop to {TARGET_W}x{TARGET_H} for mask alignment"
+                                )
+                        except Exception as resize_error:
+                            self.logger.warning(f"Resize error: {resize_error}")
+
+                        # Re-detect on cropped image for template identification
+                        markers = detector.detect_markers(cropped)
+                        marker_ids = [m.id for m in markers] if markers else []
+                        template_id = (
+                            detector.detect_template(marker_ids) if marker_ids else None
+                        )
+                        if template_id:
+                            self.logger.info(
+                                f"🎯 GUI: Template detected on cropped image: {template_id}"
+                            )
+                    else:
+                        self.logger.error("❌ GUI: Rectangle detection also failed")
+                        self.update_status(
+                            "Could not detect document boundary or ArUco markers", False
+                        )
+                        self.root.after(0, self._display_original)
+                        return
+
+                if cropped is None:
+                    self.logger.error("❌ GUI: No cropping method succeeded")
+                    self.update_status(
+                        "Processing failed - No detection method succeeded", False
+                    )
+                    self.root.after(0, self._display_original)
+                    return
+
+                # Step 4: Apply template mask - use proper mask path resolution
+                template_mask_path = None
+                try:
+                    template_mask_path = detector.get_template_mask_path()
+                except Exception as mask_error:
+                    self.logger.warning(f"Mask path error: {mask_error}")
+
+                # Fallback mask detection for numbered templates
+                if not template_mask_path and template_id:
+                    import os
+                    import re
+
+                    m = re.search(r"(\d+)$", template_id)
+                    num = m.group(1) if m else None
+                    if num:
+                        for candidate in [
+                            f"data/markers/templates/mask{num}_final.png",
+                            f"data/markers/templates/mask{num}.png",
+                            f"data/templates/mask{num}_final.png",
+                            f"data/templates/mask{num}.png",
+                        ]:
+                            if os.path.exists(candidate):
+                                template_mask_path = candidate
+                                self.logger.info(
+                                    f"🔍 GUI: Found fallback mask: {candidate}"
+                                )
+                                break
+
                 self.logger.info(f"🔍 GUI: Template mask path: {template_mask_path}")
+
                 if template_mask_path:
+                    self.update_status("Applying template mask...", True)
                     masked = detector.apply_template_mask(cropped, template_mask_path)
 
-                    # Step 7: Crop to content area (this removes black background and adds transparency)
+                    # Step 5: Content-crop the masked image (removes black background and adds transparency)
                     final_masked = detector._crop_masked_area(masked)
+                    self.logger.info(
+                        f"🎯 GUI: Content-cropped masked image to: {final_masked.shape[1]}x{final_masked.shape[0]}"
+                    )
 
                     self.processed_image = final_masked
 
@@ -622,8 +714,19 @@ class SimplifiedKrathongScannerUI:
                         "Processing complete - Transparent masked image ready", False
                     )
                 else:
-                    self.update_status("No template mask found", False)
-                    self.root.after(0, self._display_original)
+                    self.logger.warning(
+                        "⚠️ GUI: No template mask available, using cropped image"
+                    )
+                    self.update_status(
+                        "No template mask available, showing cropped image", False
+                    )
+                    self.processed_image = cropped
+                    result = {
+                        "processed_image": cropped,
+                        "success": True,
+                        "template_name": template_id or "Unknown",
+                    }
+                    self.root.after(0, self._display_result, result)
 
             except Exception as processing_error:
                 self.logger.error(f"Processing error: {processing_error}")

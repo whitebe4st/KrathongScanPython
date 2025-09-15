@@ -54,7 +54,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='KrathongScanner_V2',
+    name='KrathongScanner_V4',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
