@@ -13,6 +13,23 @@ from typing import List, Optional
 from apps.scanner.template_manager import TemplateManager
 from database.models import TemplateData
 
+# Import PNG metadata utilities
+try:
+    import sys
+    from pathlib import Path
+
+    # Add project root to path for import
+    project_root = Path(__file__).parent.parent.parent
+    sys.path.insert(0, str(project_root))
+    from src.utils.png_metadata import extract_marker_ids, read_template_metadata
+
+    PNG_METADATA_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: PNG metadata utilities not available: {e}")
+    read_template_metadata = None
+    extract_marker_ids = None
+    PNG_METADATA_AVAILABLE = False
+
 
 class TemplateManagementGUI:
     """Simple GUI for template CRUD operations."""
@@ -571,6 +588,13 @@ class CreateTemplateDialog:
             side=tk.RIGHT, padx=(10, 0)
         )
 
+        # Read Metadata button temporarily disabled — comment out to avoid showing in CRUD GUI
+        # The code is kept here for easy re-enabling in future if desired.
+        # if PNG_METADATA_AVAILABLE:
+        #     ttk.Button(template_frame, text="Read Metadata", command=self.read_template_metadata).pack(
+        #         side=tk.RIGHT, padx=(5, 0)
+        #     )
+
         # Mask file
         ttk.Label(main_frame, text="Mask File:").pack(anchor=tk.W)
         mask_frame = ttk.Frame(main_frame)
@@ -629,6 +653,63 @@ class CreateTemplateDialog:
         if filename:
             self.template_var.set(filename)
 
+            # 🎯 Try to read metadata from PNG and auto-populate fields
+            if PNG_METADATA_AVAILABLE and filename.lower().endswith(".png"):
+                try:
+                    metadata = read_template_metadata(filename)
+                    if metadata:
+                        print(f"✅ Found embedded metadata in {Path(filename).name}")
+
+                        # Auto-populate template name if not set
+                        if (
+                            not self.name_var.get().strip()
+                            and "template_name" in metadata
+                        ):
+                            self.name_var.set(metadata["template_name"])
+                            print(
+                                f"   Auto-populated name: {metadata['template_name']}"
+                            )
+
+                        # Auto-populate marker IDs if not set
+                        if (
+                            not self.markers_var.get().strip()
+                            and "marker_ids" in metadata
+                        ):
+                            marker_ids_str = ",".join(map(str, metadata["marker_ids"]))
+                            self.markers_var.set(marker_ids_str)
+                            print(f"   Auto-populated markers: {marker_ids_str}")
+
+                        # Auto-populate mask file if available and exists
+                        if not self.mask_var.get().strip() and "mask_path" in metadata:
+                            mask_path = metadata["mask_path"]
+                            if mask_path and Path(mask_path).exists():
+                                self.mask_var.set(mask_path)
+                                print(f"   Auto-populated mask: {Path(mask_path).name}")
+                            elif mask_path:
+                                # Try relative to template file directory
+                                template_dir = Path(filename).parent
+                                relative_mask = template_dir / Path(mask_path).name
+                                if relative_mask.exists():
+                                    self.mask_var.set(str(relative_mask))
+                                    print(
+                                        f"   Auto-populated mask (relative): {relative_mask.name}"
+                                    )
+
+                        # Show info message about auto-population
+                        messagebox.showinfo(
+                            "Metadata Found",
+                            f"Auto-populated fields from embedded metadata:\n"
+                            f"• Template: {metadata.get('template_name', 'N/A')}\n"
+                            f"• Marker IDs: {metadata.get('marker_ids', 'N/A')}\n"
+                            f"• Version: {metadata.get('version', 'N/A')}",
+                        )
+                    else:
+                        print(f"ℹ️ No embedded metadata found in {Path(filename).name}")
+                except Exception as e:
+                    print(f"⚠️ Error reading metadata from {filename}: {e}")
+            elif not PNG_METADATA_AVAILABLE:
+                print("ℹ️ PNG metadata reading not available")
+
     def browse_mask(self):
         """Browse for mask file."""
         filename = filedialog.askopenfilename(
@@ -637,6 +718,142 @@ class CreateTemplateDialog:
         )
         if filename:
             self.mask_var.set(filename)
+
+    def read_template_metadata(self):
+        """Read metadata from currently selected template file."""
+        if not PNG_METADATA_AVAILABLE:
+            messagebox.showwarning(
+                "Feature Unavailable", "PNG metadata reading is not available."
+            )
+            return
+
+        template_file = self.template_var.get().strip()
+        if not template_file:
+            messagebox.showwarning(
+                "No File Selected", "Please select a template file first."
+            )
+            return
+
+        if not Path(template_file).exists():
+            messagebox.showerror(
+                "File Not Found", f"Template file not found:\n{template_file}"
+            )
+            return
+
+        if not template_file.lower().endswith(".png"):
+            messagebox.showinfo(
+                "PNG Required", "Metadata reading is only supported for PNG files."
+            )
+            return
+
+        try:
+            metadata = read_template_metadata(template_file)
+            if metadata:
+                # Ask user what to do with the metadata
+                response = messagebox.askyesnocancel(
+                    "Metadata Found",
+                    f"Found embedded metadata in template:\n\n"
+                    f"• Template: {metadata.get('template_name', 'N/A')}\n"
+                    f"• Marker IDs: {metadata.get('marker_ids', 'N/A')}\n"
+                    f"• Version: {metadata.get('version', 'N/A')}\n"
+                    f"• Created: {metadata.get('created_date', 'N/A')}\n\n"
+                    f"Auto-populate fields with this metadata?\n\n"
+                    f"Yes = Auto-populate\n"
+                    f"No = Show details only\n"
+                    f"Cancel = Close",
+                )
+
+                if response is True:  # Yes - auto-populate
+                    # Auto-populate template name if not set or user confirms
+                    if "template_name" in metadata:
+                        current_name = self.name_var.get().strip()
+                        if not current_name or messagebox.askyesno(
+                            "Update Name",
+                            f"Replace current name '{current_name}' with '{metadata['template_name']}'?",
+                        ):
+                            self.name_var.set(metadata["template_name"])
+
+                    # Auto-populate marker IDs if not set or user confirms
+                    if "marker_ids" in metadata:
+                        current_markers = self.markers_var.get().strip()
+                        new_markers = ",".join(map(str, metadata["marker_ids"]))
+                        if not current_markers or messagebox.askyesno(
+                            "Update Markers",
+                            f"Replace current markers '{current_markers}' with '{new_markers}'?",
+                        ):
+                            self.markers_var.set(new_markers)
+
+                    # Auto-populate mask file if available
+                    if "mask_path" in metadata and metadata["mask_path"]:
+                        mask_path = metadata["mask_path"]
+                        if Path(mask_path).exists():
+                            current_mask = self.mask_var.get().strip()
+                            if not current_mask or messagebox.askyesno(
+                                "Update Mask",
+                                f"Set mask file to '{Path(mask_path).name}'?",
+                            ):
+                                self.mask_var.set(mask_path)
+                        else:
+                            # Try relative to template file
+                            template_dir = Path(template_file).parent
+                            relative_mask = template_dir / Path(mask_path).name
+                            if relative_mask.exists():
+                                current_mask = self.mask_var.get().strip()
+                                if not current_mask or messagebox.askyesno(
+                                    "Update Mask",
+                                    f"Set mask file to '{relative_mask.name}'?",
+                                ):
+                                    self.mask_var.set(str(relative_mask))
+
+                    messagebox.showinfo("Success", "Fields updated with metadata!")
+
+                elif response is False:  # No - show details only
+                    # Show detailed metadata in a new window
+                    self._show_metadata_details(metadata, template_file)
+
+            else:
+                messagebox.showinfo(
+                    "No Metadata",
+                    f"No KrathongScanner metadata found in:\n{Path(template_file).name}",
+                )
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to read metadata:\n{str(e)}")
+
+    def _show_metadata_details(self, metadata, template_file):
+        """Show detailed metadata in a popup window."""
+        details_window = tk.Toplevel(self.root)
+        details_window.title("Template Metadata Details")
+        details_window.geometry("500x400")
+        details_window.transient(self.root)
+        details_window.grab_set()
+
+        # Create scrollable text widget
+        frame = ttk.Frame(details_window)
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        text_widget = tk.Text(frame, wrap=tk.WORD, font=("Courier", 10))
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=text_widget.yview)
+        text_widget.configure(yscrollcommand=scrollbar.set)
+
+        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Format metadata for display
+        content = f"Template Metadata Details\n"
+        content += f"File: {Path(template_file).name}\n"
+        content += f"{'='*50}\n\n"
+
+        for key, value in metadata.items():
+            content += f"{key.replace('_', ' ').title()}: {value}\n"
+
+        text_widget.insert(tk.END, content)
+        text_widget.config(state=tk.DISABLED)
+
+        # Close button
+        ttk.Button(details_window, text="Close", command=details_window.destroy).pack(
+            pady=10
+        )
 
     def create(self):
         """Create the template."""

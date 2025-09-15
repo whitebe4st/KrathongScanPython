@@ -28,6 +28,16 @@ except ImportError:
     print(
         "Warning: SQLite template registry not available. Database features will be disabled."
     )
+
+# Import PNG metadata utilities
+try:
+    from src.utils.png_metadata import embed_template_metadata, read_template_metadata
+except ImportError:
+    print(
+        "Warning: PNG metadata utilities not available. Metadata embedding will be disabled."
+    )
+    embed_template_metadata = None
+    read_template_metadata = None
     LocalTemplateRegistry = None
 
 
@@ -42,7 +52,7 @@ class ImageCropper:
         self.cropped_image = None
 
         # Create cropping window
-        self.window = tk.Toplevel(parent)
+        self.window = tk.Toplevel(parent.root)
         self.window.title("Crop Krathong Image")
         self.window.geometry("1000x700")
         self.window.resizable(True, True)
@@ -698,7 +708,17 @@ class ImageCropper:
             )
 
             # Save mask in output directory
-            output_dir = Path("data/templates")
+            # Resolve output_dir from main GUI or parent; fallback to default
+            if (
+                hasattr(self.parent, "main_gui")
+                and self.parent.main_gui
+                and hasattr(self.parent.main_gui, "output_dir_var")
+            ):
+                output_dir = Path(self.parent.main_gui.output_dir_var.get().strip())
+            elif hasattr(self.parent, "output_dir_var"):
+                output_dir = Path(self.parent.output_dir_var.get().strip())
+            else:
+                output_dir = Path("data/templates")
             output_dir.mkdir(parents=True, exist_ok=True)
             mask_filename = f"{Path(self.image_path).stem}_mask.png"
             mask_path = str(output_dir / mask_filename)
@@ -1951,7 +1971,13 @@ class TemplatePreviewWindow:
 
             if template_name:
                 # Create output directory path (same as template output)
-                output_dir = Path("data/templates")
+                # Resolve output_dir from main GUI or parent; fallback to default
+                if self.main_gui and hasattr(self.main_gui, "output_dir_var"):
+                    output_dir = Path(self.main_gui.output_dir_var.get().strip())
+                elif hasattr(self.parent, "output_dir_var"):
+                    output_dir = Path(self.parent.output_dir_var.get().strip())
+                else:
+                    output_dir = Path("data/templates")
                 output_dir.mkdir(parents=True, exist_ok=True)
 
                 # Create mask filename with template name and adjusted suffix
@@ -2053,7 +2079,13 @@ class TemplatePreviewWindow:
                 return
 
             # Save the template image
-            output_dir = Path("data/templates")
+            # Resolve output_dir from main GUI or parent; fallback to default
+            if self.main_gui and hasattr(self.main_gui, "output_dir_var"):
+                output_dir = Path(self.main_gui.output_dir_var.get().strip())
+            elif hasattr(self.parent, "output_dir_var"):
+                output_dir = Path(self.parent.output_dir_var.get().strip())
+            else:
+                output_dir = Path("data/templates")
             output_dir.mkdir(parents=True, exist_ok=True)
 
             template_filename = f"{template_name}.png"
@@ -2062,6 +2094,30 @@ class TemplatePreviewWindow:
             cv2.imwrite(str(template_path), template_image)
             print(f"✅ Template image saved to: {template_path}")
 
+            # 🎯 Embed metadata in PNG text chunks
+            if embed_template_metadata:
+                try:
+                    success = embed_template_metadata(
+                        str(template_path),
+                        marker_ids=self.marker_ids,
+                        template_name=template_name,
+                        scale=self.final_scale,
+                        offset_x=self.final_offset_x,
+                        offset_y=self.final_offset_y,
+                        mask_path=str(mask_path)
+                        if mask_path and mask_path.exists()
+                        else None,
+                        created_date=datetime.now().isoformat(),
+                    )
+                    if success:
+                        print(f"✅ Metadata embedded in PNG: {template_path}")
+                    else:
+                        print(f"⚠️ Failed to embed metadata in PNG: {template_path}")
+                except Exception as e:
+                    print(f"⚠️ Error embedding PNG metadata: {e}")
+            else:
+                print("⚠️ PNG metadata embedding not available")
+
             # Save the adjusted mask if mask overlay is enabled and mask exists
             mask_path = None
             if self.show_mask_var.get() and self.mask_image is not None:
@@ -2069,7 +2125,7 @@ class TemplatePreviewWindow:
                 self.save_adjusted_mask()
                 mask_path = output_dir / f"{template_name}_mask.png"
 
-            # 🎯 Create and save metadata JSON for CRUD system
+            # 🎯 Create and save metadata JSON Ldkdjnfgllsldkfhjnsldndlgkfhjngldkjfhnnglodlknbglflkhjgldlknkfghjnl
             metadata = {
                 "template_name": template_name,
                 "aruco_ids": self.marker_ids,
@@ -2796,7 +2852,7 @@ class TemplateMarkerGUI:
     def open_image_cropper(self, image_path):
         """Open the image cropping interface."""
         try:
-            cropper = ImageCropper(self.root, image_path, self.template_maker)
+            cropper = ImageCropper(self, image_path, self.template_maker)
             # Wait for cropping to complete
             self.root.wait_window(cropper.window)
 
@@ -3009,6 +3065,27 @@ class TemplateMarkerGUI:
                 template_file = output_path / f"{template_name}.png"
                 cv2.imwrite(str(template_file), template_image)
 
+                # 🎯 Embed metadata in PNG text chunks
+                if embed_template_metadata:
+                    try:
+                        success = embed_template_metadata(
+                            str(template_file),
+                            marker_ids=markers,
+                            template_name=template_name,
+                            scale=self.adjusted_scale,
+                            offset_x=self.adjusted_offset_x,
+                            offset_y=self.adjusted_offset_y,
+                            created_date=datetime.now().isoformat(),
+                        )
+                        if success:
+                            print(f"✅ Metadata embedded in PNG: {template_file}")
+                        else:
+                            print(
+                                f"⚠️ Failed to embed metadata in PNG: {template_file}"
+                            )
+                    except Exception as e:
+                        print(f"⚠️ Error embedding PNG metadata: {e}")
+
                 # Handle mask file - rename existing mask or create new one
                 mask_file = None
                 if krathong_image is not None:
@@ -3026,6 +3103,27 @@ class TemplateMarkerGUI:
                         mask = self.template_maker.create_mask(krathong_image)
                         mask_file = output_path / f"{template_name}_mask.png"
                         cv2.imwrite(str(mask_file), mask)
+
+                # 🎯 Update PNG metadata with mask file path if mask was created
+                if mask_file and embed_template_metadata:
+                    try:
+                        # Re-embed metadata with mask path included
+                        success = embed_template_metadata(
+                            str(template_file),
+                            marker_ids=markers,
+                            template_name=template_name,
+                            scale=self.adjusted_scale,
+                            offset_x=self.adjusted_offset_x,
+                            offset_y=self.adjusted_offset_y,
+                            mask_path=str(mask_file),
+                            created_date=datetime.now().isoformat(),
+                        )
+                        if success:
+                            print(
+                                f"✅ Updated PNG metadata with mask path: {template_file}"
+                            )
+                    except Exception as e:
+                        print(f"⚠️ Error updating PNG metadata with mask: {e}")
 
                 # 🎯 Save ArUco metadata for CRUD system
                 metadata = {
