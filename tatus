@@ -1,5 +1,0 @@
-[33mbc182b9[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32minstatunnel[m[33m, [m[1;31morigin/instatunnel[m[33m)[m feat: InstaTunnel integration - superior tunneling solution
-[33md4e6faf[m[33m ([m[1;31morigin/localtunnel[m[33m, [m[1;32mlocaltunnel[m[33m)[m feat: Complete LocalTunnel integration with real-time parsing and bypass strategies
-[33me5b502f[m[33m ([m[1;31morigin/develop[m[33m, [m[1;32mdevelop[m[33m)[m Add Auto-Directory Mode - V2 Release
-[33m2eb2c14[m fix: ensure output directory selection works for both import and webcam modes
-[33m09541ba[m feat: create external folder structure for executable with mask files and documentation
