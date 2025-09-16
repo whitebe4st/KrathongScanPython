@@ -44,10 +44,67 @@ KrathongScanner is an advanced image processing application that automatically d
 
 ```
 KrathongScanner/
-├── src/                           # Source code
-│   ├── aruco_detector/           # ArUco detection core
-│   │   ├── detector.py           # Main detection logic
+├── main.py                       # Main application entry point
+├── README.md                     # Project documentation
+├── requirements.txt              # Python dependencies
+├── pyproject.toml               # Project configuration
+├── KrathongScanner.spec         # PyInstaller configuration
+├──
+├── src/                         # Core source code
+│   ├── aruco_detector/          # ArUco detection system
+│   │   ├── detector.py          # Main detection logic
 │   │   └── __init__.py
+│   ├── mask_generator/          # Template mask generation
+│   ├── ui/                      # Desktop GUI components
+│   ├── utils/                   # Utility functions
+│   └── websocket_api/           # WebSocket API for real-time features
+├──
+├── web/                         # Web server components
+│   ├── server.py                # Flask web server
+│   ├── templates/               # HTML templates
+│   └── static/                  # CSS, JS, images
+├──
+├── tools/                       # Development and utility tools
+│   ├── template_makers/         # Template creation tools
+│   ├── image_processing/        # Image processing utilities
+│   ├── qr_generation/          # QR code generation
+│   ├── database/               # Database management tools
+│   ├── webcam/                 # Webcam utilities
+│   └── README.md               # Tools documentation
+├──
+├── scripts/                     # Batch files and scripts
+│   ├── run_KrathongScanner.bat # Main launcher
+│   ├── start_web_server.bat    # Web server launcher
+│   ├── run_template_maker_gui.bat # Template maker GUI
+│   └── README.md               # Scripts documentation
+├──
+├── test_scripts/               # Development test scripts
+│   ├── test_*.py              # Various test scripts
+│   ├── debug_*.py             # Debugging utilities
+│   └── README.md              # Test scripts documentation
+├──
+├── docs/                       # Documentation
+│   └── archive/                # Historical documentation
+│       ├── *.md               # Feature development docs
+│       └── README.md          # Archive documentation
+├──
+├── data/                       # Application data
+│   ├── db/                    # Database files
+│   ├── markers/               # ArUco marker templates
+│   ├── test_images/           # Test images
+│   └── extracted_krathong/    # Processing results
+├──
+├── test_outputs/              # Test and debug outputs
+│   ├── images/                # Test result images
+│   ├── json/                  # Test metadata files
+│   └── README.md              # Test outputs documentation
+├──
+├── config/                    # Configuration files
+├── models/                    # ML models (if any)
+├── logs/                      # Application logs
+├── temp/                      # Temporary files
+├── output/                    # Processing outputs
+└── build/                     # Build artifacts
 │   ├── auto_directory_detector.py # Auto-directory monitoring
 │   ├── mask_generator/           # Template masking system
 │   │   ├── mask_generator.py     # Mask generation logic
