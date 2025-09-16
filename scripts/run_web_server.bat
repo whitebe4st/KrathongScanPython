@@ -37,7 +37,7 @@ echo Starting server on http://localhost:5000
 echo.
 
 REM Start the Flask server
-python server.py
+python web/server.py
 
 echo.
 echo Server stopped.

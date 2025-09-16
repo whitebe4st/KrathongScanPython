@@ -14,11 +14,16 @@ Features:
 
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
+
+# Add tools to path for cross-tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "database"))
 from template_registry import get_next_unique_ids, get_registry, register_template
 
 # Import ArUco generator (assuming it exists)

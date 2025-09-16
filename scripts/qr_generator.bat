@@ -33,7 +33,7 @@ if "%url%"=="" (
 
 echo.
 echo 📱 Generating QR code...
-G:\MotionSix\KrathongScanner\venv\Scripts\python.exe G:\MotionSix\KrathongScanner\generate_qr.py "%url%"
+G:\MotionSix\KrathongScanner\venv\Scripts\python.exe G:\MotionSix\KrathongScanner\tools\qr_generation\generate_qr.py "%url%"
 
 echo.
 echo Press any key to continue...
@@ -58,7 +58,7 @@ set /p tunnel_url="📝 Enter the tunnel URL from the other window: "
 if not "%tunnel_url%"=="" (
     echo.
     echo 📱 Generating QR code...
-    G:\MotionSix\KrathongScanner\venv\Scripts\python.exe G:\MotionSix\KrathongScanner\generate_qr.py "%tunnel_url%"
+    G:\MotionSix\KrathongScanner\venv\Scripts\python.exe G:\MotionSix\KrathongScanner\tools\qr_generation\generate_qr.py "%tunnel_url%"
 )
 
 echo.
