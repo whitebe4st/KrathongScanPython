@@ -397,6 +397,40 @@ class UnifiedTemplateCreator:
             callback=self.on_adjustment_change,
         )
 
+        # Mask adjustment controls
+        mask_adjust_frame = ttk.LabelFrame(
+            right_panel, text="Mask Adjustment", padding="10"
+        )
+        mask_adjust_frame.pack(fill=tk.X, pady=(0, 10))
+
+        self.mask_adjustment_controls = ControlPanel(mask_adjust_frame, "")
+        self.mask_adjustment_controls.pack(fill=tk.X)
+
+        self.mask_adjustment_controls.add_slider(
+            "mask_scale",
+            "Mask Scale:",
+            0.1,
+            2.0,
+            initial=1.0,
+            callback=self.on_mask_adjustment_change,
+        )
+        self.mask_adjustment_controls.add_slider(
+            "mask_offset_x",
+            "Mask X Offset:",
+            -100,
+            100,
+            initial=0,
+            callback=self.on_mask_adjustment_change,
+        )
+        self.mask_adjustment_controls.add_slider(
+            "mask_offset_y",
+            "Mask Y Offset:",
+            -100,
+            100,
+            initial=0,
+            callback=self.on_mask_adjustment_change,
+        )
+
         # Template preview controls
         preview_frame = ttk.LabelFrame(
             right_panel, text="Template Preview", padding="10"
@@ -719,26 +753,65 @@ class UnifiedTemplateCreator:
                 drawing_area = self.template_creator._get_drawing_area()
                 x1, y1, x2, y2 = drawing_area
 
-                # Resize mask to match krathong area in template
-                mask_resized = cv2.resize(self.mask_image, (x2 - x1, y2 - y1))
+                # Get mask adjustment parameters
+                mask_scale = self.mask_adjustment_controls.get_value("mask_scale")
+                mask_offset_x = self.mask_adjustment_controls.get_value("mask_offset_x")
+                mask_offset_y = self.mask_adjustment_controls.get_value("mask_offset_y")
 
-                # Create colored mask overlay (semi-transparent red)
-                mask_overlay = np.zeros(
-                    (display_image.shape[0], display_image.shape[1], 3), dtype=np.uint8
-                )
-                mask_overlay[y1:y2, x1:x2] = cv2.merge(
-                    [
-                        mask_resized,
-                        np.zeros_like(mask_resized),
-                        np.zeros_like(mask_resized),
-                    ]
+                # Calculate scaled mask dimensions
+                base_width = x2 - x1
+                base_height = y2 - y1
+                scaled_width = max(1, int(base_width * mask_scale))
+                scaled_height = max(1, int(base_height * mask_scale))
+
+                # Resize mask with scaling
+                mask_resized = cv2.resize(
+                    self.mask_image, (scaled_width, scaled_height)
                 )
 
-                # Blend with template
-                alpha = 0.3  # Transparency
-                display_image = cv2.addWeighted(
-                    display_image, 1 - alpha, mask_overlay, alpha, 0
-                )
+                # Calculate mask position with offset
+                mask_center_x = int(x1 + base_width // 2 + mask_offset_x)
+                mask_center_y = int(y1 + base_height // 2 + mask_offset_y)
+
+                mask_x1 = int(mask_center_x - scaled_width // 2)
+                mask_y1 = int(mask_center_y - scaled_height // 2)
+                mask_x2 = int(mask_x1 + scaled_width)
+                mask_y2 = int(mask_y1 + scaled_height)
+
+                # Ensure mask stays within template bounds
+                mask_x1 = max(0, int(mask_x1))
+                mask_y1 = max(0, int(mask_y1))
+                mask_x2 = min(display_image.shape[1], int(mask_x2))
+                mask_y2 = min(display_image.shape[0], int(mask_y2))
+
+                # Adjust mask if it was clipped
+                actual_width = max(1, mask_x2 - mask_x1)
+                actual_height = max(1, mask_y2 - mask_y1)
+
+                if actual_width > 0 and actual_height > 0:
+                    # Resize mask to fit the actual area
+                    mask_final = cv2.resize(
+                        mask_resized, (int(actual_width), int(actual_height))
+                    )
+
+                    # Create colored mask overlay (semi-transparent red)
+                    mask_overlay = np.zeros(
+                        (display_image.shape[0], display_image.shape[1], 3),
+                        dtype=np.uint8,
+                    )
+                    mask_overlay[mask_y1:mask_y2, mask_x1:mask_x2] = cv2.merge(
+                        [
+                            mask_final,
+                            np.zeros_like(mask_final),
+                            np.zeros_like(mask_final),
+                        ]
+                    )
+
+                    # Blend with template
+                    alpha = 0.3  # Transparency
+                    display_image = cv2.addWeighted(
+                        display_image, 1 - alpha, mask_overlay, alpha, 0
+                    )
 
             if not self.template_show_original_var.get():
                 # Darken the krathong image area if "Show Original Image" is unchecked
@@ -753,6 +826,7 @@ class UnifiedTemplateCreator:
 
         except Exception as e:
             self.logger.error(f"Template preview update error: {e}")
+            # Continue gracefully - don't break the UI
 
     def browse_output_dir(self):
         """Browse for output directory."""
@@ -766,6 +840,13 @@ class UnifiedTemplateCreator:
     def on_adjustment_change(self, value):
         """Handle adjustment control changes."""
         self.preview_template()
+        # Update template preview to apply mask overlay
+        self.update_template_preview()
+
+    def on_mask_adjustment_change(self, value):
+        """Handle mask adjustment control changes."""
+        # Only update the template preview (don't regenerate the base template)
+        self.update_template_preview()
 
     def preview_template(self):
         """Preview template with current settings."""
