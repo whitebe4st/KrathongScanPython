@@ -61,6 +61,16 @@ except ImportError:
     print("Warning: Core template_maker not found, using built-in functionality")
     KrathongTemplateMaker = None
 
+# Import database components
+try:
+    sys.path.insert(0, str(current_dir.parent.parent))
+    from database.models import TemplateData
+    from database.registry import LocalTemplateRegistry
+except ImportError:
+    print("Warning: Database components not available")
+    TemplateData = None
+    LocalTemplateRegistry = None
+
 
 class UnifiedTemplateCreator:
     """
@@ -73,6 +83,10 @@ class UnifiedTemplateCreator:
     def __init__(self):
         """Initialize the unified template creator."""
         self.setup_logging()
+
+        # Add update throttling
+        self.update_timer = None
+        self.update_pending = False
         self.logger = logging.getLogger(__name__)
 
         # Initialize modules
@@ -80,6 +94,17 @@ class UnifiedTemplateCreator:
         self.cropping_system = CroppingSystem()
         self.image_processor = ImageProcessor()
         self.template_creator = TemplateCreator()
+
+        # Initialize database
+        self.db_registry = None
+        if LocalTemplateRegistry is not None:
+            try:
+                db_path = current_dir.parent.parent / "database" / "scanner.db"
+                self.db_registry = LocalTemplateRegistry(str(db_path))
+                self.logger.info(f"Database connected: {db_path}")
+            except Exception as e:
+                self.logger.error(f"Database connection failed: {e}")
+                self.db_registry = None
 
         # State variables
         self.current_image = None
@@ -404,7 +429,7 @@ class UnifiedTemplateCreator:
         mask_adjust_frame.pack(fill=tk.X, pady=(0, 10))
 
         self.mask_adjustment_controls = ControlPanel(mask_adjust_frame, "")
-        self.mask_adjustment_controls.pack(fill=tk.X)
+        self.mask_adjustment_controls.pack(fill=tk.X, expand=False)
 
         self.mask_adjustment_controls.add_slider(
             "mask_scale",
@@ -481,6 +506,19 @@ class UnifiedTemplateCreator:
 
         self.status_var = tk.StringVar(value="Ready")
         ttk.Label(self.status_bar, textvariable=self.status_var).pack(side=tk.LEFT)
+
+        # Database status
+        db_status = (
+            "💾 DB: ✅ Connected"
+            if self.db_registry is not None
+            else "💾 DB: ❌ Not Connected"
+        )
+        self.db_status_var = tk.StringVar(value=db_status)
+        ttk.Label(
+            self.status_bar,
+            textvariable=self.db_status_var,
+            foreground="green" if self.db_registry else "red",
+        ).pack(side=tk.LEFT, padx=(20, 0))
 
         # Progress bar
         self.progress_var = tk.DoubleVar()
@@ -794,21 +832,22 @@ class UnifiedTemplateCreator:
                         mask_resized, (int(actual_width), int(actual_height))
                     )
 
-                    # Create colored mask overlay (semi-transparent red)
+                    # Create colored mask overlay (bright semi-transparent red)
                     mask_overlay = np.zeros(
                         (display_image.shape[0], display_image.shape[1], 3),
                         dtype=np.uint8,
                     )
+                    # Use bright red color (BGR format: Blue, Green, Red)
                     mask_overlay[mask_y1:mask_y2, mask_x1:mask_x2] = cv2.merge(
                         [
-                            mask_final,
-                            np.zeros_like(mask_final),
-                            np.zeros_like(mask_final),
+                            np.zeros_like(mask_final),  # Blue: 0
+                            np.zeros_like(mask_final),  # Green: 0
+                            mask_final,  # Red: mask values
                         ]
                     )
 
-                    # Blend with template
-                    alpha = 0.3  # Transparency
+                    # Blend with template - increased visibility
+                    alpha = 0.5  # Increased transparency for better visibility
                     display_image = cv2.addWeighted(
                         display_image, 1 - alpha, mask_overlay, alpha, 0
                     )
@@ -828,6 +867,14 @@ class UnifiedTemplateCreator:
             self.logger.error(f"Template preview update error: {e}")
             # Continue gracefully - don't break the UI
 
+    def schedule_template_preview_update(self):
+        """Schedule a throttled template preview update to prevent flickering."""
+        if self.update_timer:
+            self.root.after_cancel(self.update_timer)
+
+        # Schedule update after a small delay to prevent rapid firing
+        self.update_timer = self.root.after(100, self.update_template_preview)
+
     def browse_output_dir(self):
         """Browse for output directory."""
         from tkinter import filedialog
@@ -840,13 +887,13 @@ class UnifiedTemplateCreator:
     def on_adjustment_change(self, value):
         """Handle adjustment control changes."""
         self.preview_template()
-        # Update template preview to apply mask overlay
-        self.update_template_preview()
+        # Use throttled update to prevent flickering
+        self.schedule_template_preview_update()
 
     def on_mask_adjustment_change(self, value):
         """Handle mask adjustment control changes."""
-        # Only update the template preview (don't regenerate the base template)
-        self.update_template_preview()
+        # Use throttled update for smooth mask adjustments
+        self.schedule_template_preview_update()
 
     def preview_template(self):
         """Preview template with current settings."""
@@ -901,13 +948,58 @@ class UnifiedTemplateCreator:
                 self.template_image = template_image
                 self.template_canvas.display_image(template_image)
 
+                # Save to database if available
+                db_saved = False
+                if self.db_registry is not None and TemplateData is not None:
+                    try:
+                        # Create TemplateData object
+                        template_data = TemplateData(
+                            name=settings.template_name,
+                            marker_ids=settings.marker_ids,
+                            image_path=str(
+                                Path(settings.output_dir)
+                                / f"{settings.template_name}.png"
+                            ),
+                            mask_path=str(
+                                Path(settings.output_dir)
+                                / f"{settings.template_name}_mask.png"
+                            )
+                            if self.mask_image is not None
+                            else "",
+                            template_width=template_image.shape[1],
+                            template_height=template_image.shape[0],
+                        )
+
+                        # Save to database
+                        success = self.db_registry.save_template(template_data)
+                        if success:
+                            db_saved = True
+                            self.logger.info(
+                                f"Template '{settings.template_name}' saved to database"
+                            )
+                        else:
+                            self.logger.warning(
+                                f"Failed to save template '{settings.template_name}' to database"
+                            )
+                    except Exception as e:
+                        self.logger.error(f"Database save error: {e}")
+
+                # Update status and show success message
                 self.update_status("Template created successfully", 100)
-                show_info_dialog(
-                    self.root,
-                    "Success",
+
+                success_msg = (
                     f"Template '{settings.template_name}' created successfully!\n\n"
-                    f"Files saved to: {settings.output_dir}",
                 )
+                success_msg += f"📁 Files saved to: {settings.output_dir}\n"
+                if db_saved:
+                    success_msg += "💾 Saved to database (scanner.db)\n"
+                    success_msg += "✅ Template is immediately available to scanner"
+                else:
+                    success_msg += (
+                        "⚠️ Database save failed - template only saved as files"
+                    )
+
+                show_info_dialog(self.root, "Success", success_msg)
             else:
                 show_error_dialog(self.root, "Error", "Template creation failed")
                 self.update_status("Template creation failed", 0)
