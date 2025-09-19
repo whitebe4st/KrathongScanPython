@@ -1,0 +1,28 @@
+{
+  "template_name": "TESTTEST",
+  "aruco_ids": [25, 26, 27, 28],
+  "template_file": "data\\templates\\TESTTEST.png",
+  "mask_file": "data\\templates\\TESTTEST_mask.png",
+  "template_width": 1270,
+  "template_height": 720,
+  "created_at": "2025-09-11T11:26:33.284769",
+  "marker_positions": {
+    "top_left": 25,
+    "top_right": 26,
+    "bottom_left": 27,
+    "bottom_right": 28
+  },
+  "dictionary_type": "4X4_50",
+  "image_settings": {
+    "scale": 0.6193548387096773,
+    "offset_x": 0,
+    "offset_y": 0
+  },
+  "mask_settings": {
+    "scale": 1.11,
+    "offset_x": 3,
+    "offset_y": -6,
+    "original_size": [779, 457],
+    "final_size": [779, 457]
+  }
+}

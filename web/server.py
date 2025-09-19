@@ -4,6 +4,7 @@ Fast and reliable mobile upload interface
 """
 
 import base64
+import importlib.util
 import io
 import os
 import signal
@@ -796,11 +797,14 @@ def tunnel_status():
         if bundled_tunnel.is_available():
             status = bundled_tunnel.get_tunnel_status()
 
-            # Add timestamp
+            # Add timestamp and public URL
             import datetime
+
+            global public_url
 
             status["timestamp"] = datetime.datetime.now().isoformat()
             status["available"] = True
+            status["public_url"] = public_url
 
             return jsonify(status)
         else:
@@ -1581,6 +1585,8 @@ def run_web_server(host="0.0.0.0", port=5000, results_folder=None):
     """Run the KrathongScanner web server - function for GUI integration."""
     import logging
 
+    import requests
+
     logger = logging.getLogger("krathong_scanner")
 
     try:
@@ -1605,8 +1611,26 @@ def run_web_server(host="0.0.0.0", port=5000, results_folder=None):
         flask_thread = threading.Thread(target=start_flask_server, daemon=True)
         flask_thread.start()
 
-        # Wait a moment for Flask server to start
-        time.sleep(3)
+        # Wait for Flask server to be actually ready (improved from fixed 3 seconds)
+        logger.info("⏱️ Waiting for Flask server to be ready...")
+        flask_ready = False
+        max_wait_time = 10  # Maximum 10 seconds to wait
+
+        for attempt in range(max_wait_time):
+            try:
+                response = requests.get(f"http://localhost:{port}", timeout=2)
+                if response.status_code == 200:
+                    logger.info(f"✅ Flask server ready after {attempt + 1} seconds!")
+                    flask_ready = True
+                    break
+            except requests.exceptions.RequestException:
+                pass  # Flask not ready yet
+
+            time.sleep(1)
+
+        if not flask_ready:
+            logger.error("❌ Flask server failed to start within 10 seconds!")
+            raise Exception("Flask server startup timeout")
 
         # Now start InstaTunnel for public access
         logger.info("Starting InstaTunnel for public access...")
@@ -1617,6 +1641,34 @@ def run_web_server(host="0.0.0.0", port=5000, results_folder=None):
             qr_code = generate_qr_code(public_url)
             if qr_code:
                 logger.info("QR code generated for mobile access")
+
+            # Start tunnel monitoring to maintain connection
+            try:
+                import sys
+                from pathlib import Path
+
+                # Add the enhanced monitor to the path
+                monitor_path = (
+                    Path(__file__).parent.parent / "enhanced_tunnel_monitor.py"
+                )
+                if monitor_path.exists():
+                    spec = importlib.util.spec_from_file_location(
+                        "enhanced_tunnel_monitor", monitor_path
+                    )
+                    monitor_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(monitor_module)
+
+                    # Start monitoring
+                    monitor_module.start_tunnel_monitoring(
+                        tunnel_url=public_url, local_port=port, check_interval=30
+                    )
+                    logger.info("✅ Tunnel monitoring started")
+                else:
+                    logger.warning("⚠️ Enhanced tunnel monitor not found")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not start tunnel monitoring: {e}")
+        else:
+            logger.warning("⚠️ InstaTunnel failed to start - using local access only")
 
         # Keep the main thread alive
         try:

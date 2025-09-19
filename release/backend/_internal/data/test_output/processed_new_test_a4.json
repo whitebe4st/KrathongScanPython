@@ -1,0 +1,11 @@
+{
+  "input_file": "data\\test_images\\new_test_a4.png",
+  "output_file": "data\\test_output\\processed_new_test_a4.png",
+  "processed_at": "2025-09-10 23:26:05",
+  "input_size": {
+    "width": 1280,
+    "height": 720
+  },
+  "processing_mode": "auto-directory",
+  "detector_version": "1.0"
+}

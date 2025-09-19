@@ -1,0 +1,30 @@
+{
+  "input_image": "data\\test_images\\krathong_warped.png",
+  "mask_path": "data/markers/templates/mask1_final.png",
+  "output_image": "data\\test_output\\unified_test\\krathong_warped_result.png",
+  "detected_markers": 4,
+  "corner_markers": {
+    "2": {
+      "id": 2,
+      "center": [224.0, 628.75]
+    },
+    "3": {
+      "id": 3,
+      "center": [1095.75, 639.5]
+    },
+    "0": {
+      "id": 0,
+      "center": [200.75, 79.75]
+    },
+    "1": {
+      "id": 1,
+      "center": [994.25, 148.75]
+    }
+  },
+  "processing_timestamp": "1756283331.0495017",
+  "detector_config": {
+    "dict_type": "4X4_50",
+    "marker_size": 0.04
+  },
+  "processing_method": "homography"
+}

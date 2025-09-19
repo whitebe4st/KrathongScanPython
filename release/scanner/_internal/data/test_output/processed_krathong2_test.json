@@ -1,0 +1,11 @@
+{
+  "input_file": "data\\test_images\\krathong2_test.png",
+  "output_file": "data\\test_output\\processed_krathong2_test.png",
+  "processed_at": "2025-09-10 23:22:49",
+  "input_size": {
+    "width": 1280,
+    "height": 720
+  },
+  "processing_mode": "auto-directory",
+  "detector_version": "1.0"
+}

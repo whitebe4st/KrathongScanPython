@@ -25,6 +25,9 @@ from PIL import Image, ImageTk
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from aruco_detector.detector import ArUcoDetector
+
+# Import path utilities for proper resource location
+from path_utils import ensure_directories, get_data_dir, get_database_path
 from utils.logger import setup_logger
 
 
@@ -43,11 +46,24 @@ class SimplifiedKrathongScannerUI:
         self.current_image = None
         self.processed_image = None
 
-        # Configuration settings
-        self.web_output_dir = str(Path(__file__).parent / "web" / "results")
-        self.webcam_output_dir = str(Path(__file__).parent / "data" / "webcam_captures")
-        self.auto_input_dir = str(Path(__file__).parent / "data" / "auto_input")
-        self.auto_output_dir = str(Path(__file__).parent / "data" / "auto_output")
+        # Initialize directories and paths
+        ensure_directories()
+        data_dir = get_data_dir()
+
+        # Configuration settings using proper path resolution
+        self.web_output_dir = str(data_dir / "web" / "results")
+        self.webcam_output_dir = str(data_dir / "webcam_captures")
+        self.auto_input_dir = str(data_dir / "auto_input")
+        self.auto_output_dir = str(data_dir / "auto_output")
+
+        # Ensure output directories exist
+        for output_dir in [
+            self.web_output_dir,
+            self.webcam_output_dir,
+            self.auto_input_dir,
+            self.auto_output_dir,
+        ]:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         # Auto directory state
         self.auto_directory_running = False
@@ -1013,34 +1029,19 @@ class SimplifiedKrathongScannerUI:
 
                 self.update_status("Web server starting - Check console for URL", False)
 
-                # Wait a moment then open QR code
+                # Wait a moment then open browser with status page
                 def open_qr_code():
                     import time
+                    import webbrowser
 
-                    time.sleep(5)  # Wait for web server to start and generate QR codes
+                    time.sleep(10)  # Wait for web server to start
 
-                    # Look for the public QR code image
-                    qr_files = [
-                        Path(__file__).parent / "mall_public_qr.png",
-                        Path(__file__).parent / "web" / "static" / "qr_public.png",
-                        Path(__file__).parent / "web" / "static" / "qr_local.png",
-                    ]
-
-                    for qr_file in qr_files:
-                        if qr_file.exists():
-                            try:
-                                # Open QR code in default image viewer
-                                import subprocess
-
-                                subprocess.run(
-                                    ["start", str(qr_file)], shell=True, check=False
-                                )
-                                self.logger.info(f"Opened QR code: {qr_file}")
-                                break
-                            except Exception as e:
-                                self.logger.error(
-                                    f"Failed to open QR code {qr_file}: {e}"
-                                )
+                    # Open browser with localhost/status instead of QR code
+                    try:
+                        webbrowser.open("http://localhost:5000/status")
+                        self.logger.info("Opened browser with localhost/status")
+                    except Exception as e:
+                        self.logger.error(f"Failed to open browser: {e}")
 
                 # Start QR opening in background
                 threading.Thread(target=open_qr_code, daemon=True).start()
@@ -1050,7 +1051,7 @@ class SimplifiedKrathongScannerUI:
                     "Web Server",
                     f"Web server is starting!\n\n"
                     f"Output Directory: {self.web_output_dir}\n\n"
-                    "• QR code will open automatically in ~5 seconds\n"
+                    "• Status page will open automatically in ~10 seconds\n"
                     "• Check the console window for URLs\n"
                     "• Local URL (usually http://localhost:5000)\n"
                     "• Public URL for mobile access\n\n"

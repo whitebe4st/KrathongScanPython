@@ -96,6 +96,9 @@ class UnifiedTemplateCreatorGUI:
         # Bottom panel - Status & Progress
         self.setup_status_panel(main_frame)
 
+        # Initialize database path after all UI is set up
+        self.initialize_database_path()
+
     def setup_creation_panel(self, parent):
         """Setup the template creation panel (left side)."""
         # Creation panel frame
@@ -301,14 +304,55 @@ class UnifiedTemplateCreatorGUI:
         )
 
         # Database status
-        db_frame = ttk.LabelFrame(config_frame, text="🗄️ Database Status", padding="10")
+        db_frame = ttk.LabelFrame(
+            config_frame, text="🗄️ Database Configuration", padding="10"
+        )
         db_frame.grid(row=row, column=0, sticky=(tk.W, tk.E))
+        db_frame.columnconfigure(1, weight=1)
 
+        # Database file selection
+        ttk.Label(db_frame, text="Database File:").grid(
+            row=0, column=0, sticky=tk.W, pady=(0, 5)
+        )
+
+        db_selection_frame = ttk.Frame(db_frame)
+        db_selection_frame.grid(
+            row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10)
+        )
+        db_selection_frame.columnconfigure(0, weight=1)
+
+        self.db_path_var = tk.StringVar()
+        self.db_path_entry = ttk.Entry(
+            db_selection_frame, textvariable=self.db_path_var, state="readonly"
+        )
+        self.db_path_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
+
+        ttk.Button(
+            db_selection_frame, text="Browse...", command=self.browse_database_file
+        ).grid(row=0, column=1)
+
+        # Database options
+        db_options_frame = ttk.Frame(db_frame)
+        db_options_frame.grid(
+            row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10)
+        )
+
+        ttk.Button(
+            db_options_frame,
+            text="🔍 Auto-Find Scanner DB",
+            command=self.auto_find_scanner_db,
+        ).grid(row=0, column=0, padx=(0, 5))
+        ttk.Button(
+            db_options_frame, text="🆕 Create New DB", command=self.create_new_database
+        ).grid(row=0, column=1, padx=(5, 0))
+
+        # Database status
         self.db_status_label = ttk.Label(db_frame, text="Checking connection...")
-        self.db_status_label.pack(anchor=tk.W)
+        self.db_status_label.grid(
+            row=3, column=0, columnspan=2, sticky=tk.W, pady=(10, 0)
+        )
 
-        # Check database connection
-        self.check_database_connection()
+        # Database initialization moved to setup_ui after status panel is created
 
     def setup_status_panel(self, parent):
         """Setup the status panel (bottom)."""
@@ -914,6 +958,205 @@ class UnifiedTemplateCreatorGUI:
         except Exception as e:
             self.logger.error(f"Error running application: {e}")
             messagebox.showerror("Fatal Error", f"Application error: {e}")
+
+    # === Database Management Methods ===
+
+    def initialize_database_path(self):
+        """Initialize database path on startup."""
+        try:
+            # Import path utilities
+            sys.path.insert(0, str(project_root))
+            from path_utils import find_scanner_database_locations, get_database_path
+
+            # Try to find scanner database first
+            scanner_dbs = find_scanner_database_locations()
+            if scanner_dbs:
+                # Use first found scanner database
+                self.db_path_var.set(str(scanner_dbs[0]))
+                self.update_status(
+                    f"Found scanner database: {scanner_dbs[0].name}", "success"
+                )
+            else:
+                # Fall back to default path
+                default_db = get_database_path()
+                self.db_path_var.set(str(default_db))
+                self.update_status("Using default database location", "info")
+
+            # Update template manager with new database path
+            self.update_template_manager_database()
+            self.check_database_connection()
+
+        except Exception as e:
+            self.logger.error(f"Failed to initialize database path: {e}")
+            self.update_status("Database initialization failed", "error")
+
+    def browse_database_file(self):
+        """Open file dialog to select database file."""
+        try:
+            file_path = filedialog.askopenfilename(
+                title="Select Scanner Database File",
+                filetypes=[("SQLite Database", "*.db"), ("All Files", "*.*")],
+                initialdir=self.db_path_var.get()
+                if self.db_path_var.get()
+                else str(Path.cwd()),
+            )
+
+            if file_path:
+                # Validate database file
+                from path_utils import get_custom_database_path
+
+                try:
+                    validated_path = get_custom_database_path(file_path)
+                    self.db_path_var.set(str(validated_path))
+                    self.update_template_manager_database()
+                    self.check_database_connection()
+                    self.update_status(
+                        f"Database updated: {validated_path.name}", "success"
+                    )
+                except (FileNotFoundError, ValueError) as e:
+                    messagebox.showerror("Invalid Database", str(e))
+
+        except Exception as e:
+            self.logger.error(f"Failed to browse database file: {e}")
+            messagebox.showerror("Error", f"Failed to select database: {e}")
+
+    def auto_find_scanner_db(self):
+        """Automatically find scanner database."""
+        try:
+            from path_utils import find_scanner_database_locations
+
+            scanner_dbs = find_scanner_database_locations()
+            if not scanner_dbs:
+                messagebox.showinfo(
+                    "No Scanner Database",
+                    "No scanner database found. Make sure the scanner application is installed or choose a database file manually.",
+                )
+                return
+
+            if len(scanner_dbs) == 1:
+                # Single database found - use it
+                self.db_path_var.set(str(scanner_dbs[0]))
+                self.update_template_manager_database()
+                self.check_database_connection()
+                self.update_status(
+                    f"Scanner database found: {scanner_dbs[0].name}", "success"
+                )
+            else:
+                # Multiple databases found - let user choose
+                self.show_database_selection_dialog(scanner_dbs)
+
+        except Exception as e:
+            self.logger.error(f"Failed to auto-find scanner database: {e}")
+            messagebox.showerror("Error", f"Failed to find scanner database: {e}")
+
+    def show_database_selection_dialog(self, database_paths):
+        """Show dialog to select from multiple found databases."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Select Scanner Database")
+        dialog.geometry("600x400")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # Center dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_reqwidth() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_reqheight() // 2)
+        dialog.geometry(f"+{x}+{y}")
+
+        ttk.Label(
+            dialog,
+            text="Multiple scanner databases found. Please select one:",
+            font=("Arial", 11),
+        ).pack(pady=10)
+
+        # Listbox with scrollbar
+        list_frame = ttk.Frame(dialog)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        scrollbar = ttk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        listbox = tk.Listbox(
+            list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10)
+        )
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+
+        # Populate listbox
+        for db_path in database_paths:
+            listbox.insert(tk.END, str(db_path))
+
+        if database_paths:
+            listbox.selection_set(0)  # Select first item
+
+        # Buttons
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=10)
+
+        def select_database():
+            selection = listbox.curselection()
+            if selection:
+                selected_path = database_paths[selection[0]]
+                self.db_path_var.set(str(selected_path))
+                self.update_template_manager_database()
+                self.check_database_connection()
+                self.update_status(
+                    f"Database selected: {selected_path.name}", "success"
+                )
+                dialog.destroy()
+
+        ttk.Button(btn_frame, text="Select", command=select_database).pack(
+            side=tk.LEFT, padx=5
+        )
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(
+            side=tk.LEFT, padx=5
+        )
+
+    def create_new_database(self):
+        """Create a new database file."""
+        try:
+            file_path = filedialog.asksaveasfilename(
+                title="Create New Database File",
+                defaultextension=".db",
+                filetypes=[("SQLite Database", "*.db"), ("All Files", "*.*")],
+                initialfilename="scanner.db",
+            )
+
+            if file_path:
+                # Create new database
+                import sqlite3
+
+                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+                # Create database with proper schema
+                from apps.scanner.template_manager import TemplateManager
+
+                temp_manager = TemplateManager(str(file_path))
+                temp_manager.connection.close()  # Close the connection
+
+                self.db_path_var.set(file_path)
+                self.update_template_manager_database()
+                self.check_database_connection()
+                self.update_status(
+                    f"New database created: {Path(file_path).name}", "success"
+                )
+
+        except Exception as e:
+            self.logger.error(f"Failed to create new database: {e}")
+            messagebox.showerror("Error", f"Failed to create database: {e}")
+
+    def update_template_manager_database(self):
+        """Update template manager with current database path."""
+        try:
+            db_path = self.db_path_var.get()
+            if db_path:
+                # Reinitialize template manager with new database path
+                from apps.scanner.template_manager import TemplateManager
+
+                self.template_manager = TemplateManager(db_path)
+                self.logger.info(f"Template manager updated with database: {db_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to update template manager database: {e}")
 
 
 # === Helper Functions ===

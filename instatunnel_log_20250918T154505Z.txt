@@ -1,0 +1,37 @@
+=== InstaTunnel start: 2025-09-18T15:45:05.485674 UTC ===
+[STDERR] 2025-09-18T15:50:32.537924 Error: failed to maintain connection after 5 attempts: connection closed
+[STDERR] 2025-09-18T15:50:32.538463 Usage:
+[STDERR] 2025-09-18T15:50:32.538463   instatunnel [flags]
+[STDERR] 2025-09-18T15:50:32.538463   instatunnel [command]
+[STDERR] 2025-09-18T15:50:32.538463
+[STDERR] 2025-09-18T15:50:32.538463 Available Commands:
+[STDERR] 2025-09-18T15:50:32.538976   auth        Authentication commands
+[STDERR] 2025-09-18T15:50:32.538976   completion  Generate the autocompletion script for the specified shell
+[STDERR] 2025-09-18T15:50:32.538976   connect     Connect to an existing tunnel created via web dashboard
+[STDERR] 2025-09-18T15:50:32.538976   help        Help about any command
+[STDERR] 2025-09-18T15:50:32.538976   status      Show active tunnels
+[STDERR] 2025-09-18T15:50:32.538976   tunnel      Create a tunnel to expose local port
+[STDERR] 2025-09-18T15:50:32.538976
+[STDERR] 2025-09-18T15:50:32.538976 Flags:
+[STDERR] 2025-09-18T15:50:32.538976       --api-key string     InstaTunnel API key
+[STDERR] 2025-09-18T15:50:32.538976       --auth string        Basic auth (username:password)
+[STDERR] 2025-09-18T15:50:32.538976       --config string      config file (default is $HOME/.instatunnel.yaml)
+[STDERR] 2025-09-18T15:50:32.538976   -d, --domain string      Custom domain (Pro/Business only)
+[STDERR] 2025-09-18T15:50:32.538976   -h, --help               help for instatunnel
+[STDERR] 2025-09-18T15:50:32.538976       --kill string        Kill tunnel by name or subdomain
+[STDERR] 2025-09-18T15:50:32.538976       --laravel            Auto-detect Laravel dev server (port 8000)
+[STDERR] 2025-09-18T15:50:32.538976       --list               List all active tunnels
+[STDERR] 2025-09-18T15:50:32.540487       --logs               Show live request logs
+[STDERR] 2025-09-18T15:50:32.540487       --next               Auto-detect Next.js dev server (port 3000)
+[STDERR] 2025-09-18T15:50:32.540487       --password string    Password protect the tunnel
+[STDERR] 2025-09-18T15:50:32.540487       --qr                 Show QR code for mobile testing
+[STDERR] 2025-09-18T15:50:32.540487       --react              Auto-detect React dev server (port 3000)
+[STDERR] 2025-09-18T15:50:32.540487   -r, --region string      Server region (default "us")
+[STDERR] 2025-09-18T15:50:32.540487       --server string      InstaTunnel server URL (default "https://api.instatunnel.my")
+[STDERR] 2025-09-18T15:50:32.541010       --share              Generate shareable text for social media
+[STDERR] 2025-09-18T15:50:32.541010       --stats              Show usage statistics and analytics
+[STDERR] 2025-09-18T15:50:32.541010   -s, --subdomain string   Custom subdomain (default: random)
+[STDERR] 2025-09-18T15:50:32.541010   -v, --version            Show version information
+[STDERR] 2025-09-18T15:50:32.541010
+[STDERR] 2025-09-18T15:50:32.541010 Use "instatunnel [command] --help" for more information about a command.
+[STDERR] 2025-09-18T15:50:32.541010
