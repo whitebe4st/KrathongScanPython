@@ -480,6 +480,9 @@ def process_uploaded_file(job_id, filepath):
                 )
                 print(f"✅ Processing completed: {job.result_file}")
 
+                # Update network API metadata for 2-PC setup
+                update_latest_scan_metadata(job.result_file, template_id)
+
                 # Log template info if available
                 if template_id:
                     print(f"📋 Detected template: {template_id}")
@@ -827,6 +830,80 @@ def tunnel_status():
             ),
             500,
         )
+
+
+# Network API for 2-PC setup
+latest_scan_metadata = {
+    "filename": None,
+    "timestamp": None,
+    "template_used": None,
+    "status": "no_scan",
+}
+
+
+@app.route("/api/latest_scan")
+def get_latest_scan():
+    """Get metadata for the most recent processed scan"""
+    global latest_scan_metadata
+    import json
+    import os
+
+    # Try to load from JSON file first
+    metadata_file = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "output", "latest_scan.json"
+    )
+    if os.path.exists(metadata_file):
+        try:
+            with open(metadata_file, "r") as f:
+                latest_scan_metadata = json.load(f)
+        except Exception as e:
+            print(f"⚠️ API: Failed to load metadata from file: {e}")
+
+    return jsonify(latest_scan_metadata)
+
+
+@app.route("/api/download/<filename>")
+def download_scan(filename):
+    """Download a processed krathong image"""
+    try:
+        # Serve from results directory where web processing saves files
+        results_dir = os.path.join(os.path.dirname(__file__), "results")
+        filepath = os.path.join(results_dir, filename)
+
+        if os.path.exists(filepath):
+            return send_file(filepath, mimetype="image/png", as_attachment=False)
+        else:
+            return jsonify({"error": "File not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def update_latest_scan_metadata(filename, template_name=None):
+    """Update the latest scan metadata for API serving"""
+    global latest_scan_metadata
+    import datetime
+    import json
+    import os
+
+    latest_scan_metadata = {
+        "filename": filename,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "template_used": template_name,
+        "status": "ready",
+    }
+
+    # Save to JSON file for persistence
+    metadata_file = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "output", "latest_scan.json"
+    )
+    try:
+        with open(metadata_file, "w") as f:
+            json.dump(latest_scan_metadata, f, indent=2)
+        print(f"💾 API: Saved metadata to {metadata_file}")
+    except Exception as e:
+        print(f"⚠️ API: Failed to save metadata to file: {e}")
+
+    print(f"📡 API: Updated latest scan metadata - {filename}")
 
 
 def start_localtunnel(port):
