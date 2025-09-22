@@ -58,16 +58,19 @@ __all__ = [
     "ExtractMetaCallback",
 ]
 
-import cv2.gapi.wip.draw
-import cv2.dnn
-import numpy
-import cv2.mat_wrapper
-import cv2
 import typing as _typing
 
+import cv2
+import cv2.dnn
+import cv2.gapi.wip.draw
+import cv2.mat_wrapper
+import numpy
 
 if _typing.TYPE_CHECKING:
-    NumPyArrayNumeric = numpy.ndarray[_typing.Any, numpy.dtype[numpy.integer[_typing.Any] | numpy.floating[_typing.Any]]]
+    NumPyArrayNumeric = numpy.ndarray[
+        _typing.Any,
+        numpy.dtype[numpy.integer[_typing.Any] | numpy.floating[_typing.Any]],
+    ]
 else:
     NumPyArrayNumeric = numpy.ndarray
 
@@ -171,10 +174,24 @@ map_int_and_double = _typing.Dict[int, float]
 GProtoArg = _typing.Union[Scalar, cv2.GMat, cv2.GOpaqueT, cv2.GArrayT]
 GProtoInputArgs = _typing.Sequence[GProtoArg]
 GProtoOutputArgs = _typing.Sequence[GProtoArg]
-GRunArg = _typing.Union[MatLike, Scalar, cv2.GOpaqueT, cv2.GArrayT, _typing.Sequence[_typing.Any], None]
+GRunArg = _typing.Union[
+    MatLike, Scalar, cv2.GOpaqueT, cv2.GArrayT, _typing.Sequence[_typing.Any], None
+]
 GOptRunArg = _typing.Optional[GRunArg]
 GMetaArg = _typing.Union[cv2.GMat, Scalar, cv2.GOpaqueT, cv2.GArrayT]
-Prim = _typing.Union[cv2.gapi.wip.draw.Text, cv2.gapi.wip.draw.Circle, cv2.gapi.wip.draw.Image, cv2.gapi.wip.draw.Line, cv2.gapi.wip.draw.Rect, cv2.gapi.wip.draw.Mosaic, cv2.gapi.wip.draw.Poly]
+Prim = _typing.Union[
+    cv2.gapi.wip.draw.Text,
+    cv2.gapi.wip.draw.Circle,
+    cv2.gapi.wip.draw.Image,
+    cv2.gapi.wip.draw.Line,
+    cv2.gapi.wip.draw.Rect,
+    cv2.gapi.wip.draw.Mosaic,
+    cv2.gapi.wip.draw.Poly,
+]
 GTypeInfo = _typing.Union[cv2.GMat, Scalar, cv2.GOpaqueT, cv2.GArrayT]
-ExtractArgsCallback = _typing.Callable[[_typing.Sequence[GTypeInfo]], _typing.Sequence[GRunArg]]
-ExtractMetaCallback = _typing.Callable[[_typing.Sequence[GTypeInfo]], _typing.Sequence[GMetaArg]]
+ExtractArgsCallback = _typing.Callable[
+    [_typing.Sequence[GTypeInfo]], _typing.Sequence[GRunArg]
+]
+ExtractMetaCallback = _typing.Callable[
+    [_typing.Sequence[GTypeInfo]], _typing.Sequence[GMetaArg]
+]

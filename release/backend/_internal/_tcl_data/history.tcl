@@ -7,7 +7,7 @@
 # See the file "license.terms" for information on usage and redistribution of
 # this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-
+
 # The tcl::history array holds the history list and some additional
 # bookkeeping variables.
 #
@@ -36,7 +36,7 @@ namespace eval ::tcl {
 	redo	::tcl::HistRedo
     }
 }
-
+
 # history --
 #
 #	This is the main history command.  See the man page for its interface.
@@ -55,7 +55,7 @@ proc ::history {args} {
     # Tricky stuff needed to make stack and errors come out right!
     tailcall apply {arglist {tailcall history {*}$arglist} ::tcl} $args
 }
-
+
 # (unnamed) --
 #
 #	Callback when [::history] is destroyed. Destroys the implementation.
@@ -79,7 +79,7 @@ trace add command ::history delete [list apply {{oldName newName op} {
     }
     rename ::tcl::history {}
 } ::tcl}]
-
+
 # tcl::HistAdd --
 #
 #	Add an item to the history, and optionally eval it at the global scope
@@ -119,7 +119,7 @@ proc ::tcl::HistAdd {event {exec {}}} {
     }
     tailcall eval $event
 }
-
+
 # tcl::HistKeep --
 #
 #	Set or query the limit on the length of the history list
@@ -148,7 +148,7 @@ proc ::tcl::HistKeep {{count {}}} {
     }
     set history(keep) $count
 }
-
+
 # tcl::HistClear --
 #
 #	Erase the history list
@@ -172,7 +172,7 @@ proc ::tcl::HistClear {} {
 	oldest	-$keep	\
     ]
 }
-
+
 # tcl::HistInfo --
 #
 #	Return a pretty-printed version of the history list
@@ -203,7 +203,7 @@ proc ::tcl::HistInfo {{count {}}} {
     }
     return $result
 }
-
+
 # tcl::HistRedo --
 #
 #	Fetch the previous or specified event, execute it, and then replace
@@ -230,7 +230,7 @@ proc ::tcl::HistRedo {{event -1}} {
     HistChange $cmd 0
     tailcall eval $cmd
 }
-
+
 # tcl::HistIndex --
 #
 #	Map from an event specifier to an index in the history list.
@@ -272,7 +272,7 @@ proc ::tcl::HistIndex {event} {
     }
     return $i
 }
-
+
 # tcl::HistEvent --
 #
 #	Map from an event specifier to the value in the history list.
@@ -292,7 +292,7 @@ proc ::tcl::HistEvent {{event -1}} {
     }
     return [string trimright $history($i) \ \n]
 }
-
+
 # tcl::HistChange --
 #
 #	Replace a value in the history list.
@@ -311,7 +311,7 @@ proc ::tcl::HistChange {newValue {event 0}} {
     set i [HistIndex $event]
     set history($i) $newValue
 }
-
+
 # tcl::HistNextID --
 #
 #	Returns the number of the next history event.
@@ -326,7 +326,7 @@ proc ::tcl::HistNextID {} {
     variable history
     return [expr {$history(nextid) + 1}]
 }
-
+
 return
 
 # Local Variables:

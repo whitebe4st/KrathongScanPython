@@ -25,7 +25,7 @@
 #	<path> selection get
 #	<path> selection includes <item>
 #	<path> selection set <first> ?<last>?
-
+
 package require Tk
 
 ::tk::Megawidget create ::tk::IconList ::tk::FocusableWidget {
@@ -708,7 +708,7 @@ package require Tk
 	unset -nocomplain accel
     }
 }
-
+
 return
 
 # Local Variables:

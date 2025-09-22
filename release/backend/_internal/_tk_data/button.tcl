@@ -775,7 +775,7 @@ proc ::tk::CheckLeave {w} {
 }
 
 return
-
+
 # Local Variables:
 # mode: tcl
 # fill-column: 78

@@ -72,4 +72,3 @@ namespace eval ::tk {
     ::msgcat::mcset ru "retry" "\u043f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c"
     ::msgcat::mcset ru "yes" "\u0434\u0430"
 }
-

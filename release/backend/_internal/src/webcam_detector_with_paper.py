@@ -48,7 +48,7 @@ class WebcamDetectorWithPaper:
         else:
             # Use default directory
             self.capture_dir = Path(__file__).parent.parent / capture_dir
-        
+
         self.capture_dir.mkdir(parents=True, exist_ok=True)
         self.logger.info(f"Capture directory: {self.capture_dir}")
 

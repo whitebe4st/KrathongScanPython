@@ -45,5 +45,3 @@ proc ttk::progressbar::stop {pb} {
     }
     $pb configure -value 0
 }
-
-

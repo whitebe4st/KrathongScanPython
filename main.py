@@ -7,6 +7,7 @@ Everything is accessible from one main window.
 """
 
 import argparse
+import importlib.util
 import os
 import subprocess
 import sys
@@ -750,6 +751,9 @@ class SimplifiedKrathongScannerUI:
 
                     self.processed_image = final_masked
 
+                    # Save to output directory for network API
+                    self._save_processed_image_for_network(final_masked, template_id)
+
                     # Create result dict for compatibility
                     result = {
                         "processed_image": final_masked,
@@ -768,6 +772,12 @@ class SimplifiedKrathongScannerUI:
                         "No template mask available, showing cropped image", False
                     )
                     self.processed_image = cropped
+
+                    # Save to output directory for network API
+                    self._save_processed_image_for_network(
+                        cropped, template_id or "Unknown"
+                    )
+
                     result = {
                         "processed_image": cropped,
                         "success": True,
@@ -785,6 +795,61 @@ class SimplifiedKrathongScannerUI:
         except Exception as e:
             self.update_status(f"Error processing image: {str(e)}", False)
             self.logger.error(f"Error processing image: {e}")
+
+    def _save_processed_image_for_network(self, image, template_name):
+        """Save processed image to output directory for network API access"""
+        try:
+            import os
+            from datetime import datetime
+
+            # Create output directory if it doesn't exist
+            output_dir = os.path.join(os.path.dirname(__file__), "output")
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Generate filename with timestamp - MATCH API EXPECTATION
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = (
+                f"processed_{timestamp}_{template_name.replace(' ', '_')}_masked.png"
+            )
+            filepath = os.path.join(output_dir, filename)
+
+            # Save the image
+            success = cv2.imwrite(filepath, image)
+
+            if success:
+                self.logger.info(
+                    f"💾 GUI: Saved processed image for network API: {filename}"
+                )
+
+                # Update the web server's API metadata if web server is running
+                try:
+                    # Try to import and call the update function from web server
+                    import sys
+
+                    web_server_path = os.path.join(
+                        os.path.dirname(__file__), "web", "server.py"
+                    )
+                    if os.path.exists(web_server_path):
+                        # Import the update function
+                        spec = importlib.util.spec_from_file_location(
+                            "web_server", web_server_path
+                        )
+                        web_module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(web_module)
+
+                        # Call the update function if it exists
+                        if hasattr(web_module, "update_latest_scan_metadata"):
+                            web_module.update_latest_scan_metadata(
+                                filename, template_name
+                            )
+                            self.logger.info("📡 GUI: Updated web server API metadata")
+                except Exception as api_error:
+                    self.logger.warning(f"Could not update web server API: {api_error}")
+            else:
+                self.logger.error(f"Failed to save processed image: {filepath}")
+
+        except Exception as e:
+            self.logger.error(f"Error saving processed image for network: {e}")
 
     def _display_result(self, result):
         """Display processing result."""

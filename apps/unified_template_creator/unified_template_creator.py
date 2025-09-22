@@ -529,7 +529,12 @@ class UnifiedTemplateCreator:
         self.mask_adjustment_controls.pack(fill=tk.X)
 
         self.mask_adjustment_controls.add_slider(
-            "mask_scale", "Mask Scale:", 0.1, 2.0, initial=1.0, callback=self.on_mask_adjustment_change
+            "mask_scale",
+            "Mask Scale:",
+            0.1,
+            2.0,
+            initial=1.0,
+            callback=self.on_mask_adjustment_change,
         )
         self.mask_adjustment_controls.add_slider(
             "mask_offset_x",
@@ -648,8 +653,12 @@ class UnifiedTemplateCreator:
     def on_mask_adjustment_change(self, value=None):
         """Handle mask adjustment control changes by updating preview."""
         # Only update preview if we have a mask and the preview controls are set up
-        if (hasattr(self, 'mask_image') and self.mask_image is not None and 
-            hasattr(self, 'template_show_mask_var') and self.template_show_mask_var.get()):
+        if (
+            hasattr(self, "mask_image")
+            and self.mask_image is not None
+            and hasattr(self, "template_show_mask_var")
+            and self.template_show_mask_var.get()
+        ):
             self.preview_template()
 
     def setup_database_templates_tab(self, db_frame):
@@ -1064,12 +1073,28 @@ class UnifiedTemplateCreator:
 
                 # Get current template settings for krathong position
                 settings = self.get_template_settings()
-                krathong_start_x = center_x - int(width * settings.scale) // 2 + settings.offset_x
-                krathong_start_y = center_y - int(height * settings.scale) // 2 + settings.offset_y
+                krathong_start_x = (
+                    center_x - int(width * settings.scale) // 2 + settings.offset_x
+                )
+                krathong_start_y = (
+                    center_y - int(height * settings.scale) // 2 + settings.offset_y
+                )
 
                 # Ensure krathong bounds
-                krathong_start_x = max(x1, min(krathong_start_x, x1 + drawing_width - int(width * settings.scale)))
-                krathong_start_y = max(y1, min(krathong_start_y, y1 + drawing_height - int(height * settings.scale)))
+                krathong_start_x = max(
+                    x1,
+                    min(
+                        krathong_start_x,
+                        x1 + drawing_width - int(width * settings.scale),
+                    ),
+                )
+                krathong_start_y = max(
+                    y1,
+                    min(
+                        krathong_start_y,
+                        y1 + drawing_height - int(height * settings.scale),
+                    ),
+                )
 
                 # Now apply mask-specific adjustments (independent of krathong scale)
                 mask_scale = self.mask_adjustment_controls.get_value("mask_scale")
@@ -1082,8 +1107,12 @@ class UnifiedTemplateCreator:
                 final_mask_height = max(1, int(mask_height * mask_scale))
 
                 # Position mask relative to krathong center, with mask-specific offsets
-                mask_center_x = krathong_start_x + int(width * settings.scale) // 2 + mask_offset_x
-                mask_center_y = krathong_start_y + int(height * settings.scale) // 2 + mask_offset_y
+                mask_center_x = (
+                    krathong_start_x + int(width * settings.scale) // 2 + mask_offset_x
+                )
+                mask_center_y = (
+                    krathong_start_y + int(height * settings.scale) // 2 + mask_offset_y
+                )
 
                 mask_start_x = int(mask_center_x - final_mask_width // 2)
                 mask_start_y = int(mask_center_y - final_mask_height // 2)
@@ -1101,11 +1130,18 @@ class UnifiedTemplateCreator:
 
                 if actual_width > 0 and actual_height > 0:
                     # Resize mask to match final dimensions
-                    mask_resized = cv2.resize(self.mask_image, (final_mask_width, final_mask_height))
+                    mask_resized = cv2.resize(
+                        self.mask_image, (final_mask_width, final_mask_height)
+                    )
 
                     # Resize mask to fit actual bounds if needed
-                    if actual_width != final_mask_width or actual_height != final_mask_height:
-                        mask_final = cv2.resize(mask_resized, (actual_width, actual_height))
+                    if (
+                        actual_width != final_mask_width
+                        or actual_height != final_mask_height
+                    ):
+                        mask_final = cv2.resize(
+                            mask_resized, (actual_width, actual_height)
+                        )
                     else:
                         mask_final = mask_resized
 
@@ -1115,7 +1151,9 @@ class UnifiedTemplateCreator:
                         dtype=np.uint8,
                     )
                     # Use bright red color (BGR format: Blue, Green, Red)
-                    mask_overlay[mask_start_y:mask_end_y, mask_start_x:mask_end_x] = cv2.merge(
+                    mask_overlay[
+                        mask_start_y:mask_end_y, mask_start_x:mask_end_x
+                    ] = cv2.merge(
                         [
                             np.zeros_like(mask_final),  # Blue: 0
                             np.zeros_like(mask_final),  # Green: 0
@@ -1692,12 +1730,18 @@ class UnifiedTemplateCreator:
 
                 if template_image is not None:
                     self.template_image = template_image
-                    
+
                     # Apply mask overlay if checkbox is checked
                     display_image = template_image.copy()
-                    print(f"DEBUG: template_show_mask_var.get() = {self.template_show_mask_var.get()}")
-                    print(f"DEBUG: hasattr(self, 'mask_image') = {hasattr(self, 'mask_image')}")
-                    print(f"DEBUG: self.mask_image is not None = {self.mask_image is not None if hasattr(self, 'mask_image') else 'N/A'}")
+                    print(
+                        f"DEBUG: template_show_mask_var.get() = {self.template_show_mask_var.get()}"
+                    )
+                    print(
+                        f"DEBUG: hasattr(self, 'mask_image') = {hasattr(self, 'mask_image')}"
+                    )
+                    print(
+                        f"DEBUG: self.mask_image is not None = {self.mask_image is not None if hasattr(self, 'mask_image') else 'N/A'}"
+                    )
                     if (
                         self.template_show_mask_var.get()
                         and hasattr(self, "mask_image")
@@ -1705,87 +1749,137 @@ class UnifiedTemplateCreator:
                     ):
                         print("DEBUG: Applying mask overlay")
                         # Create mask overlay on template using krathong image positioning + mask adjustments
-                        
+
                         # Get krathong image position for reference (but don't scale mask by krathong scale)
                         height, width = self.cropped_image.shape[:2]
-                        
+
                         # Get drawing area (same as krathong placement)
                         drawing_area = self.template_creator._get_drawing_area()
                         x1, y1, x2, y2 = drawing_area
                         drawing_width = x2 - x1
                         drawing_height = y2 - y1
-                        
+
                         # Calculate krathong center position for reference
                         center_x = x1 + drawing_width // 2
                         center_y = y1 + drawing_height // 2
-                        
-                        krathong_start_x = center_x - int(width * settings.scale) // 2 + settings.offset_x
-                        krathong_start_y = center_y - int(height * settings.scale) // 2 + settings.offset_y
-                        
+
+                        krathong_start_x = (
+                            center_x
+                            - int(width * settings.scale) // 2
+                            + settings.offset_x
+                        )
+                        krathong_start_y = (
+                            center_y
+                            - int(height * settings.scale) // 2
+                            + settings.offset_y
+                        )
+
                         # Ensure krathong bounds
-                        krathong_start_x = max(x1, min(krathong_start_x, x1 + drawing_width - int(width * settings.scale)))
-                        krathong_start_y = max(y1, min(krathong_start_y, y1 + drawing_height - int(height * settings.scale)))
-                        
+                        krathong_start_x = max(
+                            x1,
+                            min(
+                                krathong_start_x,
+                                x1 + drawing_width - int(width * settings.scale),
+                            ),
+                        )
+                        krathong_start_y = max(
+                            y1,
+                            min(
+                                krathong_start_y,
+                                y1 + drawing_height - int(height * settings.scale),
+                            ),
+                        )
+
                         # Now apply mask-specific adjustments (independent of krathong scale)
-                        mask_scale = self.mask_adjustment_controls.get_value("mask_scale")
-                        mask_offset_x = self.mask_adjustment_controls.get_value("mask_offset_x")
-                        mask_offset_y = self.mask_adjustment_controls.get_value("mask_offset_y")
-                        
+                        mask_scale = self.mask_adjustment_controls.get_value(
+                            "mask_scale"
+                        )
+                        mask_offset_x = self.mask_adjustment_controls.get_value(
+                            "mask_offset_x"
+                        )
+                        mask_offset_y = self.mask_adjustment_controls.get_value(
+                            "mask_offset_y"
+                        )
+
                         # Use mask's original dimensions as base, only scaled by mask_scale
                         mask_height, mask_width = self.mask_image.shape[:2]
                         final_mask_width = max(1, int(mask_width * mask_scale))
                         final_mask_height = max(1, int(mask_height * mask_scale))
-                        
+
                         # Position mask relative to krathong center, with mask-specific offsets
-                        mask_center_x = krathong_start_x + int(width * settings.scale) // 2 + mask_offset_x
-                        mask_center_y = krathong_start_y + int(height * settings.scale) // 2 + mask_offset_y
-                        
+                        mask_center_x = (
+                            krathong_start_x
+                            + int(width * settings.scale) // 2
+                            + mask_offset_x
+                        )
+                        mask_center_y = (
+                            krathong_start_y
+                            + int(height * settings.scale) // 2
+                            + mask_offset_y
+                        )
+
                         mask_start_x = int(mask_center_x - final_mask_width // 2)
                         mask_start_y = int(mask_center_y - final_mask_height // 2)
                         mask_end_x = mask_start_x + final_mask_width
                         mask_end_y = mask_start_y + final_mask_height
-                        
-                        print(f"DEBUG: Krathong position: ({krathong_start_x}, {krathong_start_y}) {int(width * settings.scale)}x{int(height * settings.scale)}")
-                        print(f"DEBUG: Mask adjustments: scale={mask_scale}, offset=({mask_offset_x}, {mask_offset_y})")
-                        print(f"DEBUG: Final mask: ({mask_start_x}, {mask_start_y}) to ({mask_end_x}, {mask_end_y})")
-                        
+
+                        print(
+                            f"DEBUG: Krathong position: ({krathong_start_x}, {krathong_start_y}) {int(width * settings.scale)}x{int(height * settings.scale)}"
+                        )
+                        print(
+                            f"DEBUG: Mask adjustments: scale={mask_scale}, offset=({mask_offset_x}, {mask_offset_y})"
+                        )
+                        print(
+                            f"DEBUG: Final mask: ({mask_start_x}, {mask_start_y}) to ({mask_end_x}, {mask_end_y})"
+                        )
+
                         # Resize mask to match final dimensions
-                        mask_resized = cv2.resize(self.mask_image, (final_mask_width, final_mask_height))
-                        
+                        mask_resized = cv2.resize(
+                            self.mask_image, (final_mask_width, final_mask_height)
+                        )
+
                         # Create colored mask overlay (bright semi-transparent red)
                         mask_overlay = np.zeros(
                             (display_image.shape[0], display_image.shape[1], 3),
                             dtype=np.uint8,
                         )
-                        
+
                         # Ensure mask bounds are within image
                         mask_start_x = max(0, mask_start_x)
                         mask_start_y = max(0, mask_start_y)
                         mask_end_x = min(display_image.shape[1], mask_end_x)
                         mask_end_y = min(display_image.shape[0], mask_end_y)
-                        
+
                         actual_width = mask_end_x - mask_start_x
                         actual_height = mask_end_y - mask_start_y
-                        
+
                         if actual_width > 0 and actual_height > 0:
                             # Resize mask to fit actual bounds
-                            mask_final = cv2.resize(mask_resized, (actual_width, actual_height))
-                            
+                            mask_final = cv2.resize(
+                                mask_resized, (actual_width, actual_height)
+                            )
+
                             # Apply red overlay where mask is active
-                            mask_overlay[mask_start_y:mask_end_y, mask_start_x:mask_end_x] = cv2.merge([
-                                np.zeros_like(mask_final),  # Blue: 0
-                                np.zeros_like(mask_final),  # Green: 0
-                                mask_final,  # Red: mask values
-                            ])
-                            
+                            mask_overlay[
+                                mask_start_y:mask_end_y, mask_start_x:mask_end_x
+                            ] = cv2.merge(
+                                [
+                                    np.zeros_like(mask_final),  # Blue: 0
+                                    np.zeros_like(mask_final),  # Green: 0
+                                    mask_final,  # Red: mask values
+                                ]
+                            )
+
                             # Blend with template
-                            display_image = cv2.addWeighted(display_image, 0.8, mask_overlay, 0.2, 0)
+                            display_image = cv2.addWeighted(
+                                display_image, 0.8, mask_overlay, 0.2, 0
+                            )
                             print("DEBUG: Mask overlay applied successfully")
                         else:
                             print("DEBUG: Mask has zero size, skipping overlay")
                     else:
                         print("DEBUG: Mask overlay conditions not met")
-                    
+
                     self.template_canvas.display_image(display_image)
                     self.update_status("Template preview ready", 100)
                 else:
