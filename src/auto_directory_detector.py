@@ -14,6 +14,7 @@ from typing import Optional, Set
 
 import cv2
 import numpy as np
+import requests
 
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -634,6 +635,32 @@ class AutoDirectoryDetector:
                     f"Successfully processed: {image_path.name} -> {output_filename}"
                 )
                 self.stats["files_processed"] += 1
+
+                # Upload processed image to API
+                try:
+                    with open(str(output_path), "rb") as f:
+                        files = {"file": (output_filename, f, "image/png")}
+                        response = requests.post(
+                            "http://localhost:5000/upload", files=files, timeout=10
+                        )
+
+                    if response.status_code == 200:
+                        upload_data = response.json()
+                        self.logger.info(
+                            f"Successfully uploaded {output_filename} to API (Job ID: {upload_data.get('job_id', 'Unknown')})"
+                        )
+                    else:
+                        self.logger.warning(
+                            f"Failed to upload {output_filename} to API (Status: {response.status_code})"
+                        )
+                except requests.exceptions.RequestException as e:
+                    self.logger.warning(
+                        f"Failed to upload {output_filename} to API: {e}"
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Unexpected error uploading {output_filename} to API: {e}"
+                    )
 
                 # Create a metadata file
                 self.create_metadata_file(image_path, output_path)

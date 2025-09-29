@@ -18,6 +18,7 @@ from typing import Callable, Optional
 
 import cv2
 import numpy as np
+import requests
 
 # Import requests for API calls
 try:
@@ -1068,11 +1069,46 @@ class KrathongScannerUI:
             preview_window.use_homography_var.set(self.default_homography_var.get())
 
             if preview_window.result:
-                # Image was saved
-                messagebox.showinfo(
-                    "Success",
-                    f"Successfully processed and saved: {os.path.basename(preview_window.result)}",
-                )
+                # Image was saved - also upload to API
+                try:
+                    # Upload the processed image to the API
+                    with open(preview_window.result, "rb") as f:
+                        files = {
+                            "file": (
+                                os.path.basename(preview_window.result),
+                                f,
+                                "image/png",
+                            )
+                        }
+                        response = requests.post(
+                            "http://localhost:5000/upload", files=files, timeout=10
+                        )
+
+                    if response.status_code == 200:
+                        upload_data = response.json()
+                        messagebox.showinfo(
+                            "Success",
+                            f"Successfully processed, saved, and uploaded: {os.path.basename(preview_window.result)}\n"
+                            f"Job ID: {upload_data.get('job_id', 'Unknown')}",
+                        )
+                    else:
+                        messagebox.showwarning(
+                            "Partial Success",
+                            f"Image saved locally but upload failed: {os.path.basename(preview_window.result)}\n"
+                            f"Status: {response.status_code}",
+                        )
+                except requests.exceptions.RequestException as e:
+                    messagebox.showwarning(
+                        "Partial Success",
+                        f"Image saved locally but upload failed: {os.path.basename(preview_window.result)}\n"
+                        f"Error: {str(e)}",
+                    )
+                except Exception as e:
+                    messagebox.showwarning(
+                        "Partial Success",
+                        f"Image saved locally but upload failed: {os.path.basename(preview_window.result)}\n"
+                        f"Unexpected error: {str(e)}",
+                    )
             else:
                 # User cancelled
                 pass  # Silent cancellation
