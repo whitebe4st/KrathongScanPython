@@ -1720,30 +1720,116 @@ def run_web_server(host="0.0.0.0", port=5000, results_folder=None):
                 logger.info("QR code generated for mobile access")
 
             # Start tunnel monitoring to maintain connection
-            try:
-                import sys
-                from pathlib import Path
+            def keep_alive_tunnel():
+                """Send periodic requests to keep tunnel alive and prevent idle timeouts"""
+                global public_url
+                keep_alive_interval = 120  # Send keep-alive every 2 minutes
 
-                # Add the enhanced monitor to the path
-                monitor_path = (
-                    Path(__file__).parent.parent / "enhanced_tunnel_monitor.py"
-                )
-                if monitor_path.exists():
-                    spec = importlib.util.spec_from_file_location(
-                        "enhanced_tunnel_monitor", monitor_path
-                    )
-                    monitor_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(monitor_module)
+                logger.info("Starting tunnel keep-alive mechanism...")
 
-                    # Start monitoring
-                    monitor_module.start_tunnel_monitoring(
-                        tunnel_url=public_url, local_port=port, check_interval=30
-                    )
-                    logger.info("✅ Tunnel monitoring started")
-                else:
-                    logger.warning("⚠️ Enhanced tunnel monitor not found")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not start tunnel monitoring: {e}")
+                while True:
+                    try:
+                        time.sleep(keep_alive_interval)
+
+                        if public_url:
+                            import urllib.request
+
+                            try:
+                                # Send a simple GET request to keep the tunnel active
+                                with urllib.request.urlopen(
+                                    public_url, timeout=10
+                                ) as response:
+                                    if response.status == 200:
+                                        logger.debug(
+                                            f"Keep-alive ping sent to {public_url}"
+                                        )
+                                    else:
+                                        logger.warning(
+                                            f"Keep-alive ping failed with status {response.status}"
+                                        )
+                            except Exception as e:
+                                logger.warning(f"Keep-alive ping failed: {e}")
+                        else:
+                            logger.debug("Keep-alive: No tunnel URL available")
+                    except Exception as e:
+                        logger.error(f"Keep-alive error: {e}")
+                        time.sleep(keep_alive_interval)
+
+            def monitor_tunnel():
+                """Monitor tunnel health and restart if disconnected"""
+                global public_url  # Declare global access
+                check_interval = 60  # Check every 60 seconds
+                consecutive_failures = 0
+                max_failures = 3
+
+                logger.info("Starting tunnel health monitoring...")
+
+                while True:
+                    try:
+                        time.sleep(check_interval)
+
+                        # Test tunnel connection
+                        if public_url:
+                            import urllib.request
+
+                            try:
+                                with urllib.request.urlopen(
+                                    public_url, timeout=10
+                                ) as response:
+                                    if response.status == 200:
+                                        if consecutive_failures > 0:
+                                            logger.info("Tunnel connection restored")
+                                        consecutive_failures = 0
+                                        continue
+                            except Exception as e:
+                                consecutive_failures += 1
+                                logger.warning(
+                                    f"Tunnel check failed ({consecutive_failures}/{max_failures}): {e}"
+                                )
+
+                                if consecutive_failures >= max_failures:
+                                    logger.warning(
+                                        "Tunnel appears disconnected, attempting restart..."
+                                    )
+
+                                    # Stop existing tunnel if possible
+                                    try:
+                                        stop_bundled_tunnel()
+                                    except:
+                                        pass
+
+                                    # Restart tunnel
+                                    new_url = start_instatunnel(port)
+                                    if new_url and new_url != public_url:
+                                        public_url = new_url
+                                        logger.info(
+                                            f"Tunnel restarted with new URL: {new_url}"
+                                        )
+
+                                        # Regenerate QR code
+                                        qr_code = generate_qr_code(new_url)
+                                        if qr_code:
+                                            logger.info(
+                                                "QR code updated for new tunnel URL"
+                                            )
+
+                                        consecutive_failures = 0
+                                    else:
+                                        logger.error("Failed to restart tunnel")
+                    except Exception as e:
+                        logger.error(f"Tunnel monitoring error: {e}")
+                        time.sleep(check_interval)
+
+            # Start monitoring in background thread
+            monitor_thread = threading.Thread(target=monitor_tunnel, daemon=True)
+            monitor_thread.start()
+            logger.info("Tunnel monitoring started - will auto-restart if disconnected")
+
+            # Start keep-alive in background thread
+            keep_alive_thread = threading.Thread(target=keep_alive_tunnel, daemon=True)
+            keep_alive_thread.start()
+            logger.info("✅ Tunnel keep-alive started - will send periodic pings")
+
         else:
             logger.warning("⚠️ InstaTunnel failed to start - using local access only")
 

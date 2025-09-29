@@ -112,9 +112,19 @@
         border-radius: 10px;
         font-family: monospace;
         font-size: 14px;
-        color: #333;
+        color: #0066cc;
+        text-decoration: none;
         word-break: break-all;
         margin: 10px 0;
+        display: block;
+        text-align: center;
+        transition: all 0.3s ease;
+      }
+
+      .url-display:hover {
+        background: #e9ecef;
+        color: #004499;
+        text-decoration: underline;
       }
 
       .actions {
@@ -207,25 +217,6 @@
           </div>
         </div>
 
-        <div class="status-card">
-          <div class="status-item">
-            <span class="status-label">📊 Active Jobs:</span>
-            <span class="status-value">{{ status.active_jobs }}</span>
-          </div>
-
-          <div class="status-item">
-            <span class="status-label">✅ Completed Jobs:</span>
-            <span class="status-value success"
-              >{{ status.completed_jobs }}</span
-            >
-          </div>
-
-          <div class="status-item">
-            <span class="status-label">📈 Total Jobs:</span>
-            <span class="status-value">{{ status.total_jobs }}</span>
-          </div>
-        </div>
-
         {% if status.public_url %}
         <div class="status-card success">
           <div class="qr-section">
@@ -238,7 +229,12 @@
             <img src="{{ qr_code }}" alt="QR Code" class="qr-code" />
             {% endif %}
 
-            <div class="url-display">{{ status.public_url }}</div>
+            <a
+              href="{{ status.public_url }}"
+              class="url-display"
+              target="_blank"
+              >{{ status.public_url }}</a
+            >
           </div>
         </div>
         {% else %}
@@ -255,8 +251,7 @@
       </div>
 
       <div class="actions">
-        <a href="/" class="btn">📤 Upload Page</a>
-        <a href="/jobs" class="btn secondary">📋 View Jobs</a>
+        <a href="{{ status.public_url or '/' }}" class="btn">📤 Upload Page</a>
         <button onclick="location.reload()" class="btn secondary">
           🔄 Refresh
         </button>
