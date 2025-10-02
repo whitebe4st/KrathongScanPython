@@ -1,46 +1,46 @@
-# 🏮 KrathongScanner
+#  KrathongScanner
 
 A comprehensive Python-based computer vision system for automatic krathong image processing with ArUco marker detection, multiple input modes, and mobile web interface.
 
-## 📖 Project Overview
+##  Project Overview
 
 KrathongScanner is an advanced image processing application that automatically detects krathong images using ArUco markers, applies perspective correction, and generates transparent PNG outputs. The system supports multiple input methods and provides both desktop GUI and mobile web interfaces.
 
-### 🎯 Key Components
+###  Key Components
 
-1. **🎯 ArUco Detection System** - Real-time marker detection with 4X4_50 dictionary
-2. **🖥️ Desktop GUI Application** - Tkinter-based interface with multiple processing modes
-3. **📁 Auto-Directory Monitoring** - Real-time folder monitoring with automatic processing
-4. **🌐 Mobile Web Server** - Flask-based web interface for mobile upload and processing
-5. **📷 Webcam Integration** - Live camera feed processing (advanced and basic modes)
-6. **🎨 Template Masking** - Automatic background removal with transparent output
+1. ** ArUco Detection System** - Real-time marker detection with 4X4_50 dictionary
+2. ** Desktop GUI Application** - Tkinter-based interface with multiple processing modes
+3. ** Auto-Directory Monitoring** - Real-time folder monitoring with automatic processing
+4. ** Mobile Web Server** - Flask-based web interface for mobile upload and processing
+5. ** Webcam Integration** - Live camera feed processing (advanced and basic modes)
+6. ** Template Masking** - Automatic background removal with transparent output
 
-## 🚀 Features
+##  Features
 
 ### Core Processing
 
-- **🎯 ArUco Marker Detection**: Automatic krathong detection using ArUco markers
-- **📐 Perspective Correction**: Homography-based image rectification
-- **🎨 Template Masking**: Automatic background removal for clean transparent PNGs
-- **⚡ Batch Processing**: Process multiple images automatically
-- **🔄 Real-time Monitoring**: Live folder monitoring with instant processing
+- ** ArUco Marker Detection**: Automatic krathong detection using ArUco markers
+- ** Perspective Correction**: Homography-based image rectification
+- ** Template Masking**: Automatic background removal for clean transparent PNGs
+- ** Batch Processing**: Process multiple images automatically
+- ** Real-time Monitoring**: Live folder monitoring with instant processing
 
 ### Multiple Input Modes
 
-- **📤 Import Mode**: Direct file selection and processing
-- **📁 Auto-Directory Mode**: Monitor folders for automatic processing
-- **📷 Webcam Mode**: Live camera feed processing
-- **🌐 Web Upload Mode**: Mobile-friendly web interface
+- ** Import Mode**: Direct file selection and processing
+- ** Auto-Directory Mode**: Monitor folders for automatic processing
+- ** Webcam Mode**: Live camera feed processing
+- ** Web Upload Mode**: Mobile-friendly web interface
 
 ### Advanced Features
 
-- **📱 Mobile Web Interface**: Thai language interface optimized for mobile devices
-- **🌐 Public Access**: Optional ngrok tunneling for remote access
-- **📊 Progress Tracking**: Real-time processing status and job monitoring
-- **📥 Automatic Downloads**: Direct download of processed results
-- **🔒 Security Validation**: File type and size validation for uploads
+- ** Mobile Web Interface**: Thai language interface optimized for mobile devices
+- ** Public Access**: Optional ngrok tunneling for remote access
+- ** Progress Tracking**: Real-time processing status and job monitoring
+- ** Automatic Downloads**: Direct download of processed results
+- ** Security Validation**: File type and size validation for uploads
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 KrathongScanner/
@@ -149,7 +149,7 @@ KrathongScanner/
 └── README.md                    # This file
 ```
 
-## 🛠️ Getting Started
+##  Getting Started
 
 ### Prerequisites
 
@@ -159,7 +159,7 @@ KrathongScanner/
 - **Webcam** (optional, for live processing)
 - **ngrok** (optional, for public web access)
 
-### 📦 Installation
+###  Installation
 
 1. **Clone the repository**
 
@@ -189,7 +189,7 @@ KrathongScanner/
    python main.py --help
    ```
 
-### 🚀 Quick Start
+###  Quick Start
 
 #### Desktop Application
 
@@ -230,27 +230,27 @@ python run_webcam.py
 python run_webcam_advanced.py
 ```
 
-## 📱 Usage Modes
+##  Usage Modes
 
-### 1. 🖥️ Desktop GUI Mode
+### 1. Desktop GUI Mode
 
 - **Launch**: `python main.py` or `run_KrathongScanner.bat`
 - **Features**: Point-and-click interface, batch processing, real-time preview
 - **Best for**: Desktop users, batch processing, testing
 
-### 2. 📁 Auto-Directory Mode
+### 2. Auto-Directory Mode
 
 - **Launch**: Choose "Auto-Directory Mode" in GUI or use command line
 - **Features**: Real-time folder monitoring, automatic processing
 - **Best for**: Continuous processing, integration with other systems
 
-### 3. 🌐 Web Upload Mode
+### 3.  Web Upload Mode
 
 - **Launch**: `python web/server.py` or `run_web_server.bat`
 - **Features**: Mobile-friendly interface, progress tracking, public access
 - **Best for**: Mobile users, remote processing, team collaboration
 
-### 4. 📷 Webcam Mode
+### 4.  Webcam Mode
 
 - **Launch**: `python run_webcam.py`
 - **Features**: Live camera feed, real-time processing, instant preview
@@ -291,7 +291,7 @@ USE_HOMOGRAPHY = True
 CHECK_INTERVAL = 2.0  # seconds
 ```
 
-## 📊 Processing Pipeline
+##  Processing Pipeline
 
 ### 1. **Input Stage**
 
@@ -323,7 +323,7 @@ CHECK_INTERVAL = 2.0  # seconds
 - Result delivery (download/display)
 - Cleanup and logging
 
-## 🧪 Development & Testing
+##  Development & Testing
 
 ### Running Tests
 
@@ -354,8 +354,6 @@ python -m PyInstaller KrathongScanner.spec
 # Output will be in dist/KrathongScanner_V2/
 ```
 
-## 🚀 Deployment
-
 ### Desktop Application
 
 1. **Development**: Run directly with Python
@@ -368,86 +366,6 @@ python -m PyInstaller KrathongScanner.spec
 2. **Production**: Deploy with Gunicorn + Nginx
 3. **Public Access**: Configure ngrok or similar tunneling service
 
-### System Requirements
-
-- **RAM**: 4GB minimum, 8GB recommended
-- **Storage**: 1GB for application, additional for image processing
-- **CPU**: Multi-core recommended for batch processing
-- **GPU**: Optional, can improve processing speed
-
-## 📈 Performance
-
-### Benchmarks
-
-- **Single Image**: 2-5 seconds (depending on size and complexity)
-- **Batch Processing**: ~3 images per minute
-- **Webcam Mode**: 15-30 FPS (depending on resolution)
-- **Web Upload**: Limited by network speed
-
-### Optimization Tips
-
-- Use SSD storage for faster I/O
-- Process images in batches for efficiency
-- Reduce image resolution for faster processing
-- Enable GPU acceleration if available
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### ArUco Detection Fails
-
-- Ensure markers are clearly visible
-- Check lighting conditions
-- Verify marker dictionary (4X4_50)
-- Validate marker size and distance
-
-#### Processing Errors
-
-- Check input file format (JPG, PNG, BMP)
-- Verify template masks exist in `data/markers/templates/`
-- Ensure sufficient disk space
-- Check file permissions
-
-#### Web Server Issues
-
-- Verify port 5000 is available
-- Check firewall settings
-- Ensure all dependencies are installed
-- Validate upload file size (max 16MB)
-
-#### Performance Issues
-
-- Reduce image resolution
-- Close unnecessary applications
-- Use faster storage (SSD)
-- Enable hardware acceleration
-
-### Log Files
-
-- **Application logs**: `logs/` directory
-- **Console output**: Real-time logging during execution
-- **Error logs**: Detailed error information and stack traces
-
-## 🤝 Contributing
-
-### Development Setup
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Make changes and add tests
-4. Ensure all tests pass: `pytest tests/`
-5. Commit changes: `git commit -m 'Add amazing feature'`
-6. Push to branch: `git push origin feature/amazing-feature`
-7. Submit pull request
-
-### Coding Standards
-
-- Follow PEP 8 style guidelines
-- Add type hints for new functions
-- Write docstrings for public methods
-- Include unit tests for new features
-- Update documentation as needed
 
 ## 📚 Documentation
 
@@ -457,40 +375,6 @@ python -m PyInstaller KrathongScanner.spec
 - **Web Server**: `web/README.md`
 - **Mask Generator**: `src/mask_generator/README.md`
 
-### Guides
-
-- **User Guide**: Step-by-step usage instructions
-- **Developer Guide**: Technical implementation details
-- **Deployment Guide**: Production deployment instructions
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **OpenCV Community**: For excellent computer vision libraries
-- **ArUco Marker System**: For robust marker detection
-- **Flask Framework**: For simple and powerful web development
-- **Python Community**: For amazing ecosystem and tools
-
-## 📞 Support
-
-### Getting Help
-
-1. **Check Documentation**: Review README and module docs
-2. **Search Issues**: Look for similar problems in issue tracker
-3. **Test with Samples**: Verify with included test images
-4. **Check Logs**: Review log files for error details
-
-### Contact Information
-
-- **Issues**: Use GitHub issue tracker
-- **Questions**: Check documentation first
-- **Features**: Submit feature requests via issues
-- **Security**: Report security issues privately
-
----
 
 **🎉 Ready to start processing krathong images? Choose your preferred mode and begin scanning!**
 
